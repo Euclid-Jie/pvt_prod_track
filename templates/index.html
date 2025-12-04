@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主观选股 - 产品表现分析</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-chart-line"></i> 主观选股 - 产品表现分析</h1>
+                <p class="subtitle">基金经理/策略标签 & 产品性能指标</p>
+            </div>
+            <div class="export-controls">
+                <button onclick="exportPDF()" class="btn btn-primary">
+                    <i class="fas fa-file-pdf"></i> 导出PDF
+                </button>
+                <button onclick="exportImage()" class="btn btn-success">
+                    <i class="fas fa-image"></i> 导出图片
+                </button>
+                <button onclick="exportExcel()" class="btn btn-warning">
+                    <i class="fas fa-file-excel"></i> 导出Excel
+                </button>
+                <button onclick="refreshData()" class="btn btn-secondary">
+                    <i class="fas fa-sync-alt"></i> 刷新数据
+                </button>
+            </div>
+        </header>
+
+        <!-- 筛选控制 -->
+        <div class="filter-controls">
+            <div class="filter-group">
+                <label for="searchInput"><i class="fas fa-search"></i> 搜索:</label>
+                <input type="text" id="searchInput" placeholder="搜索产品名称或基金经理..." onkeyup="filterTable()">
+            </div>
+            <div class="filter-group">
+                <label for="sortSelect">排序:</label>
+                <select id="sortSelect" onchange="sortTable()">
+                    <option value="ytd">YTD(%) 降序</option>
+                    <option value="ytd_asc">YTD(%) 升序</option>
+                    <option value="name">产品名称</option>
+                    <option value="manager">基金经理</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="table-container">
+            <table id="fundTable">
+                <thead>
+                    <tr>
+                        <th>基金经理/策略</th>
+                        <th>产品名称</th>
+                        <th>50成星统计起始日</th>
+                        <th>近一周(%)</th>
+                        <th>MTD(%)</th>
+                        <th>YTD(%)</th>
+                        <th>2024(%)</th>
+                        <th>2023(%)</th>
+                        <th>2022(%)</th>
+                        <th>2021(%)</th>
+                        <th>2020(%)</th>
+                        <th>2019(%)</th>
+                        <th>近一年最大回撤(%)</th>
+                        <th>其他(%)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- 数据将通过JavaScript动态加载 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-panel">
+            <div class="stat-card">
+                <h3><i class="fas fa-calculator"></i> 统计概览</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">产品总数</span>
+                        <span class="stat-value" id="totalFunds">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">平均YTD</span>
+                        <span class="stat-value" id="avgYtd">0%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最高YTD</span>
+                        <span class="stat-value" id="maxYtd">0%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最低YTD</span>
+                        <span class="stat-value" id="minYtd">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载提示 -->
+        <div id="loading" class="loading">
+            <i class="fas fa-spinner fa-spin"></i> 加载数据中...
+        </div>
+
+        <footer class="footer">
+            <p>数据更新时间: <span id="updateTime"></span></p>
+            <p class="copyright">© 2024 主观选股分析系统 | 技术支持: Python Flask + JavaScript</p>
+        </footer>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        let fundsData = [];
+
+        // 加载数据
+        async function loadData() {
+            showLoading(true);
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                fundsData = data.funds;
+                renderTable(fundsData);
+                updateStats();
+                document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                alert('加载数据失败，请检查网络连接');
+            }
+            showLoading(false);
+        }
+
+        // 渲染表格
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            data.forEach(fund => {
+                const row = document.createElement('tr');
+                
+                // 数值格式化函数
+                const formatValue = (value) => {
+                    if (value === undefined || value === null) return '-';
+                    const num = parseFloat(value);
+                    if (isNaN(num)) return value;
+                    return num.toFixed(2);
+                };
+
+                // 添加颜色类
+                const getColorClass = (value, isPositiveGood = true) => {
+                    const num = parseFloat(value);
+                    if (isNaN(num)) return '';
+                    if (num > 0) return isPositiveGood ? 'positive' : 'negative';
+                    if (num < 0) return isPositiveGood ? 'negative' : 'positive';
+                    return '';
+                };
+
+                row.innerHTML = `
+                    <td>${fund.manager || '-'}</td>
+                    <td class="product-name">${fund.product_name || '-'}</td>
+                    <td>${fund.start_date || '-'}</td>
+                    <td class="${getColorClass(fund.recent_week)}">${formatValue(fund.recent_week)}</td>
+                    <td class="${getColorClass(fund.mtd)}">${formatValue(fund.mtd)}</td>
+                    <td class="${getColorClass(fund.ytd)} highlight">${formatValue(fund.ytd)}</td>
+                    <td class="${getColorClass(fund.y2024)}">${formatValue(fund.y2024)}</td>
+                    <td class="${getColorClass(fund.y2023)}">${formatValue(fund.y2023)}</td>
+                    <td class="${getColorClass(fund.y2022)}">${formatValue(fund.y2022)}</td>
+                    <td class="${getColorClass(fund.y2021)}">${formatValue(fund.y2021)}</td>
+                    <td class="${getColorClass(fund.y2020)}">${formatValue(fund.y2020)}</td>
+                    <td class="${getColorClass(fund.y2019)}">${formatValue(fund.y2019)}</td>
+                    <td class="${getColorClass(fund.max_drawdown, false)}">${formatValue(fund.max_drawdown)}</td>
+                    <td class="${getColorClass(fund.other, false)}">${formatValue(fund.other)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // 过滤表格
+        function filterTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredData = fundsData.filter(fund => 
+                (fund.manager && fund.manager.toLowerCase().includes(searchTerm)) ||
+                (fund.product_name && fund.product_name.toLowerCase().includes(searchTerm))
+            );
+            renderTable(filteredData);
+        }
+
+        // 排序表格
+        function sortTable() {
+            const sortBy = document.getElementById('sortSelect').value;
+            const sortedData = [...fundsData];
+            
+            sortedData.sort((a, b) => {
+                switch(sortBy) {
+                    case 'ytd':
+                        return (parseFloat(b.ytd) || 0) - (parseFloat(a.ytd) || 0);
+                    case 'ytd_asc':
+                        return (parseFloat(a.ytd) || 0) - (parseFloat(b.ytd) || 0);
+                    case 'name':
+                        return (a.product_name || '').localeCompare(b.product_name || '');
+                    case 'manager':
+                        return (a.manager || '').localeCompare(b.manager || '');
+                    default:
+                        return 0;
+                }
+            });
+            
+            renderTable(sortedData);
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            const ytdValues = fundsData
+                .map(fund => parseFloat(fund.ytd))
+                .filter(val => !isNaN(val));
+            
+            if (ytdValues.length > 0) {
+                const sum = ytdValues.reduce((a, b) => a + b, 0);
+                const avg = sum / ytdValues.length;
+                const max = Math.max(...ytdValues);
+                const min = Math.min(...ytdValues);
+                
+                document.getElementById('totalFunds').textContent = fundsData.length;
+                document.getElementById('avgYtd').textContent = avg.toFixed(2) + '%';
+                document.getElementById('maxYtd').textContent = max.toFixed(2) + '%';
+                document.getElementById('minYtd').textContent = min.toFixed(2) + '%';
+            }
+        }
+
+        // 导出功能
+        async function exportPDF() {
+            window.open('/api/export/pdf', '_blank');
+        }
+
+        async function exportImage() {
+            window.open('/api/export/image', '_blank');
+        }
+
+        async function exportExcel() {
+            window.open('/api/export/excel', '_blank');
+        }
+
+        // 手动截图功能
+        async function captureScreenshot() {
+            try {
+                const tableContainer = document.querySelector('.table-container');
+                const canvas = await html2canvas(tableContainer, {
+                    scale: 2,
+                    backgroundColor: '#ffffff'
+                });
+                
+                const link = document.createElement('a');
+                link.download = `主观选股表格_${new Date().toISOString().split('T')[0]}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (error) {
+                console.error('截图失败:', error);
+                alert('截图失败，请重试');
+            }
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadData();
+        }
+
+        // 显示/隐藏加载提示
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'flex' : 'none';
+        }
+
+        // 页面加载完成时初始化
+        document.addEventListener('DOMContentLoaded', loadData);
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                exportPDF();
+            }
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                exportExcel();
+            }
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+        });
+    </script>
+</body>
+</html>
