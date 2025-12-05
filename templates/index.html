@@ -81,6 +81,10 @@
                         <span class="stat-value" id="totalFunds">0</span>
                     </div>
                     <div class="stat-item">
+                        <span class="stat-label">平均近一周</span>
+                        <span class="stat-value" id="avg_recent_week">0%</span>
+                    </div>
+                    <div class="stat-item">
                         <span class="stat-label">平均YTD</span>
                         <span class="stat-value" id="avgYtd">0%</span>
                     </div>
@@ -213,14 +217,22 @@
             const ytdValues = fundsData
                 .map(fund => parseFloat(fund.ytd))
                 .filter(val => !isNaN(val));
-            
+            const recent_week_values = fundsData
+                .map(fund => parseFloat(fund.recent_week))
+                .filter(val => !isNaN(val));
+            if (recent_week_values.length > 0) {
+                const sum = recent_week_values.reduce((a, b) => a + b, 0);
+                const avg = sum / recent_week_values.length;
+                
+                document.getElementById('totalFunds').textContent = fundsData.length;
+                document.getElementById('avg_recent_week').textContent = avg.toFixed(2) + '%';
+            }
             if (ytdValues.length > 0) {
                 const sum = ytdValues.reduce((a, b) => a + b, 0);
                 const avg = sum / ytdValues.length;
                 const max = Math.max(...ytdValues);
                 const min = Math.min(...ytdValues);
                 
-                document.getElementById('totalFunds').textContent = fundsData.length;
                 document.getElementById('avgYtd').textContent = avg.toFixed(2) + '%';
                 document.getElementById('maxYtd').textContent = max.toFixed(2) + '%';
                 document.getElementById('minYtd').textContent = min.toFixed(2) + '%';
