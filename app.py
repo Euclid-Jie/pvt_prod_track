@@ -19,6 +19,19 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.fonts import addMapping
 import matplotlib
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    PageBreak,
+)
+from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from io import BytesIO
+from datetime import datetime
 
 matplotlib.use("Agg")
 import platform
@@ -128,8 +141,10 @@ def get_strategies():
 
 
 @app.route("/api/export/pdf")
-def export_pdf():
+def create_pdf_with_toc():
+    """创建带目录的PDF"""
     data = load_data()
+
     # 按策略分组
     strategies_data = {}
     for fund in data["funds"]:
@@ -138,54 +153,113 @@ def export_pdf():
             strategies_data[strategy] = []
         strategies_data[strategy].append(fund)
 
-    # 创建PDF - 使用自定义页面大小（适应表格宽度）
+    # 创建PDF
     buffer = BytesIO()
-    page_width = 21 * cm  # 横向A4宽度
-    page_height = 14 * cm  # 横向A4高度
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=(page_width, page_height),
+        pagesize=(21 * cm, 21 * cm),
         rightMargin=0.5 * cm,
         leftMargin=0.5 * cm,
         topMargin=1 * cm,
         bottomMargin=1 * cm,
     )
-    elements = []
+    # 对每个策略内的产品按照recent_week升序排序
+    for strategy_name, funds_list in strategies_data.items():
+        # 按照recent_week升序排序
+        strategies_data[strategy_name] = sorted(
+            funds_list,
+            key=lambda x: (
+                # 处理"-"或其他非数值情况
+                9999
+                if x.get("recent_week") in ["-", None, ""]
+                else float(x.get("recent_week", 9999))
+            ),
+            reverse=True,
+        )
 
-    # 标题样式（使用中文字体）
+    elements = []
     styles = getSampleStyleSheet()
 
-    # 创建使用中文字体的样式
+    # 添加PDF标题
     title_style = ParagraphStyle(
-        "CustomTitle",
+        "Title",
         parent=styles["Heading1"],
         fontName=CHINESE_FONT + "-Bold",
-        fontSize=18,
-        textColor=colors.HexColor("#333333"),
+        fontSize=22,
+        textColor=colors.HexColor("#1a365d"),
         spaceAfter=15,
-        alignment=1,  # 居中
-    )
-
-    subtitle_style = ParagraphStyle(
-        "Subtitle",
-        parent=styles["Normal"],
-        fontName=CHINESE_FONT,
-        fontSize=12,
-        textColor=colors.HexColor("#666666"),
-        spaceAfter=20,
         alignment=1,
     )
 
-    # 添加标题
     elements.append(Paragraph("私募产品周报", title_style))
     elements.append(
         Paragraph(
-            f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}", subtitle_style
+            f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
+            ParagraphStyle("Subtitle", fontName=CHINESE_FONT, fontSize=11, alignment=1),
         )
     )
-    elements.append(Spacer(1, 15))
+    elements.append(Spacer(1, 25))
 
-    # 表头（使用中文）
+    # 创建目录表格
+    elements.append(
+        Paragraph(
+            "目  录",
+            ParagraphStyle(
+                "TocTitle",
+                fontName=CHINESE_FONT + "-Bold",
+                fontSize=16,
+                alignment=1,
+                spaceAfter=15,
+            ),
+        )
+    )
+
+    # 目录内容
+    toc_data = [["策略类型", "页码", "产品数量"]]
+
+    for i, (strategy_name, funds_list) in enumerate(strategies_data.items()):
+        toc_data.append(
+            [
+                Paragraph(
+                    strategy_name,
+                    ParagraphStyle("TocItem", fontName=CHINESE_FONT, fontSize=10),
+                ),
+                f"第 {i+2} 页",  # 假设目录在第1页，策略从第2页开始
+                str(len(funds_list)),
+            ]
+        )
+
+    # 目录表格
+    toc_table = Table(toc_data, colWidths=[8 * cm, 4 * cm, 3 * cm])
+    toc_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4c51bf")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), CHINESE_FONT + "-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+                ("ALIGN", (0, 1), (-1, -1), "LEFT"),
+                ("FONTNAME", (0, 1), (-1, -1), CHINESE_FONT),
+                ("FONTSIZE", (0, 1), (-1, -1), 9),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [colors.white, colors.HexColor("#f8fafc")],
+                ),
+            ]
+        )
+    )
+
+    elements.append(toc_table)
+    elements.append(PageBreak())
+
+    # 添加策略内容（与之前相同的代码）
     headers = [
         "管理人",
         "产品名称",
@@ -198,41 +272,39 @@ def export_pdf():
         "2022(%)",
         "最大回撤(%)",
     ]
-    # 创建表格 - 设置列宽
+
     col_widths = [
-        3.0 * cm,  # 基金经理
-        3.5 * cm,  # 产品名称
-        2.0 * cm,  # 起始日
-        1.5 * cm,  # 近一周
-        1.5 * cm,  # MTD
-        1.8 * cm,  # YTD (稍宽)
-        1.5 * cm,  # 2024
-        1.5 * cm,  # 2023
-        1.5 * cm,  # 2022
-        2.0 * cm,  # 最大回撤
+        3.0 * cm,
+        3.5 * cm,
+        2.0 * cm,
+        1.5 * cm,
+        1.5 * cm,
+        1.8 * cm,
+        1.5 * cm,
+        1.5 * cm,
+        1.5 * cm,
+        2.0 * cm,
     ]
-    # 遍历所有策略
-    for strategy_name, funds_list in strategies_data.items():
-        # 添加策略标题
-        strategy_title = Paragraph(
-            f"策略类型: {strategy_name}",
-            ParagraphStyle(
-                "StrategyTitle",
-                fontName=CHINESE_FONT + "-Bold",
-                fontSize=14,
-                textColor=colors.HexColor("#333333"),
-                spaceAfter=8,
-            ),
+
+    for i, (strategy_name, funds_list) in enumerate(strategies_data.items()):
+        # 策略标题
+        elements.append(
+            Paragraph(
+                f"策略类型: {strategy_name}",
+                ParagraphStyle(
+                    "StrategyTitle",
+                    fontName=CHINESE_FONT + "-Bold",
+                    fontSize=14,
+                    textColor=colors.HexColor("#2d3748"),
+                    spaceAfter=10,
+                ),
+            )
         )
-        elements.append(strategy_title)
         elements.append(Spacer(1, 5))
 
-        # 准备该策略的表格数据
-        table_data = []
-        table_data.append(headers)
-
-        # 表格内容（只使用当前策略的数据）
-        for item in funds_list:  # 这里改为 funds_list，不是 data["funds"]
+        # 表格数据
+        table_data = [headers]
+        for item in funds_list:
             row = [
                 Paragraph(
                     str(item.get("manager", "")),
@@ -245,9 +317,7 @@ def export_pdf():
                 str(item.get("start_date", "")),
                 format_value_with_color(item.get("recent_week", ""), CHINESE_FONT),
                 format_value_with_color(item.get("mtd", ""), CHINESE_FONT),
-                format_value_with_color(
-                    item.get("ytd", ""), CHINESE_FONT, True
-                ),  # YTD高亮
+                format_value_with_color(item.get("ytd", ""), CHINESE_FONT, True),
                 format_value_with_color(item.get("y2024", ""), CHINESE_FONT),
                 format_value_with_color(item.get("y2023", ""), CHINESE_FONT),
                 format_value_with_color(item.get("y2022", ""), CHINESE_FONT),
@@ -257,13 +327,12 @@ def export_pdf():
             ]
             table_data.append(row)
 
-        # 创建该策略的表格
+        # 创建表格
         strategy_table = Table(table_data, colWidths=col_widths, repeatRows=1)
 
-        # 为这个表格设置样式
+        # 表格样式
         style = TableStyle(
             [
-                # 表头样式
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#667eea")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("ALIGN", (0, 0), (-1, 0), "CENTER"),
@@ -271,65 +340,44 @@ def export_pdf():
                 ("FONTSIZE", (0, 0), (-1, 0), 9),
                 ("BOTTOMPADDING", (0, 0), (-1, 0), 10),
                 ("TOPPADDING", (0, 0), (-1, 0), 8),
-                # 表格主体
                 ("ALIGN", (0, 1), (-1, -1), "CENTER"),
                 ("FONTNAME", (0, 1), (-1, -1), CHINESE_FONT),
                 ("FONTSIZE", (0, 1), (-1, -1), 7),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e0e0e0")),
-                # 行背景色交替
                 (
                     "ROWBACKGROUNDS",
                     (0, 1),
                     (-1, -1),
                     [colors.white, colors.HexColor("#f8f9ff")],
                 ),
-                # 行高
                 ("LEFTPADDING", (0, 0), (-1, -1), 5),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                 ("TOPPADDING", (0, 1), (-1, -1), 6),
                 ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
-                # YTD列特殊样式
                 ("BACKGROUND", (5, 1), (5, -1), colors.HexColor("#eef2ff")),
                 ("FONTNAME", (5, 1), (5, -1), CHINESE_FONT + "-Bold"),
-                # 表头边框
                 ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor("#764ba2")),
             ]
         )
 
-        # 添加奇偶行背景色
-        for i in range(1, len(table_data)):
-            if i % 2 == 0:
-                style.add("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f8f9ff"))
-
-        strategy_table.setStyle(style)  # 注意：这里要设置到 strategy_table 上
+        strategy_table.setStyle(style)
         elements.append(strategy_table)
 
-        # 如果不是最后一个策略，添加分页
-        if list(strategies_data.keys())[-1] != strategy_name:
+        # 添加统计信息
+        elements.append(Spacer(1, 15))
+        stats_text = f"本页共展示 {len(funds_list)} 只产品"
+        elements.append(
+            Paragraph(
+                stats_text, ParagraphStyle("Stats", fontName=CHINESE_FONT, fontSize=9)
+            )
+        )
+
+        if i < len(strategies_data) - 1:
             elements.append(PageBreak())
 
-    # 添加页脚
-    elements.append(Spacer(1, 20))
-
-    footer_style = ParagraphStyle(
-        "Footer",
-        parent=styles["Normal"],
-        fontName=CHINESE_FONT,
-        fontSize=8,
-        textColor=colors.grey,
-        alignment=1,
-    )
-    elements.append(
-        Paragraph(
-            "© Euclid-Jie 2025 私募产品周报 | 数据仅供参考，投资需谨慎", footer_style
-        )
-    )
-    elements.append(Paragraph(f"页码：第 <pageNumber> 页", footer_style))
-
     # 生成PDF
-    doc.build(elements, onFirstPage=add_page_footer, onLaterPages=add_page_footer)
+    doc.build(elements)
     buffer.seek(0)
-
     return send_file(
         buffer,
         as_attachment=True,
@@ -349,7 +397,7 @@ def format_value_with_color(value, font_name, is_drawdown=False):
             else:
                 # 收益率：正值好，负值不好
                 color = (
-                    colors.green if num > 0 else colors.red if num < 0 else colors.black
+                    colors.red if num > 0 else colors.green if num < 0 else colors.black
                 )
             formatted_value = f"{num:.2f}%"
             # 创建带样式的段落
@@ -405,13 +453,13 @@ def export_excel():
     # 保存到内存
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="主观选股数据", index=False)
+        df.to_excel(writer, sheet_name="私募产品周报", index=False)
     output.seek(0)
 
     return send_file(
         output,
         as_attachment=True,
-        download_name=f'主观选股数据_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+        download_name=f'私募产品周报_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
