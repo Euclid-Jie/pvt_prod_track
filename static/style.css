@@ -176,12 +176,12 @@ tbody tr:hover {
 
 /* 数值样式 */
 .positive {
-    color: #10b981;
+    color: #ef4444;
     font-weight: 600;
 }
 
 .negative {
-    color: #ef4444;
+    color: #10b981;
     font-weight: 600;
 }
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>主观选股 - 产品表现分析</title>
+    <title>私募产品周报</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -13,15 +13,12 @@
         <!-- 头部 -->
         <header class="header">
             <div class="header-content">
-                <h1><i class="fas fa-chart-line"></i> 主观选股 - 产品表现分析</h1>
-                <p class="subtitle">基金经理/策略标签 & 产品性能指标</p>
+                <h1><i class="fas fa-chart-line"></i> 主观选股 - 私募产品周报</h1>
+                <p class="subtitle">管理人/产品名称 & 区间指标对比</p>
             </div>
             <div class="export-controls">
                 <button onclick="exportPDF()" class="btn btn-primary">
                     <i class="fas fa-file-pdf"></i> 导出PDF
-                </button>
-                <button onclick="exportImage()" class="btn btn-success">
-                    <i class="fas fa-image"></i> 导出图片
                 </button>
                 <button onclick="exportExcel()" class="btn btn-warning">
                     <i class="fas fa-file-excel"></i> 导出Excel
@@ -36,15 +33,17 @@
         <div class="filter-controls">
             <div class="filter-group">
                 <label for="searchInput"><i class="fas fa-search"></i> 搜索:</label>
-                <input type="text" id="searchInput" placeholder="搜索产品名称或基金经理..." onkeyup="filterTable()">
+                <input type="text" id="searchInput" placeholder="搜索产品名称或管理人..." onkeyup="filterTable()">
             </div>
             <div class="filter-group">
                 <label for="sortSelect">排序:</label>
                 <select id="sortSelect" onchange="sortTable()">
+                    <option value="recent_week">近一周(%) 降序</option>
+                    <option value="recent_week_asc">近一周(%) 升序</option>
                     <option value="ytd">YTD(%) 降序</option>
                     <option value="ytd_asc">YTD(%) 升序</option>
                     <option value="name">产品名称</option>
-                    <option value="manager">基金经理</option>
+                    <option value="manager">管理人</option>
                 </select>
             </div>
         </div>
@@ -54,20 +53,16 @@
             <table id="fundTable">
                 <thead>
                     <tr>
-                        <th>基金经理/策略</th>
+                        <th>管理人</th>
                         <th>产品名称</th>
-                        <th>50成星统计起始日</th>
+                        <th>净值起始日</th>
                         <th>近一周(%)</th>
                         <th>MTD(%)</th>
                         <th>YTD(%)</th>
                         <th>2024(%)</th>
                         <th>2023(%)</th>
                         <th>2022(%)</th>
-                        <th>2021(%)</th>
-                        <th>2020(%)</th>
-                        <th>2019(%)</th>
-                        <th>近一年最大回撤(%)</th>
-                        <th>其他(%)</th>
+                        <th>最大回撤(%)</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
@@ -108,7 +103,7 @@
 
         <footer class="footer">
             <p>数据更新时间: <span id="updateTime"></span></p>
-            <p class="copyright">© 2024 主观选股分析系统 | 技术支持: Python Flask + JavaScript</p>
+            <p class="copyright">© Euclid-Jie 2025 私募产品周报 | 技术支持: Python Flask + JavaScript</p>
         </footer>
     </div>
 
@@ -163,17 +158,13 @@
                     <td>${fund.manager || '-'}</td>
                     <td class="product-name">${fund.product_name || '-'}</td>
                     <td>${fund.start_date || '-'}</td>
-                    <td class="${getColorClass(fund.recent_week)}">${formatValue(fund.recent_week)}</td>
+                    <td class="${getColorClass(fund.recent_week)} highlight">${formatValue(fund.recent_week)}</td>
                     <td class="${getColorClass(fund.mtd)}">${formatValue(fund.mtd)}</td>
                     <td class="${getColorClass(fund.ytd)} highlight">${formatValue(fund.ytd)}</td>
                     <td class="${getColorClass(fund.y2024)}">${formatValue(fund.y2024)}</td>
                     <td class="${getColorClass(fund.y2023)}">${formatValue(fund.y2023)}</td>
                     <td class="${getColorClass(fund.y2022)}">${formatValue(fund.y2022)}</td>
-                    <td class="${getColorClass(fund.y2021)}">${formatValue(fund.y2021)}</td>
-                    <td class="${getColorClass(fund.y2020)}">${formatValue(fund.y2020)}</td>
-                    <td class="${getColorClass(fund.y2019)}">${formatValue(fund.y2019)}</td>
                     <td class="${getColorClass(fund.max_drawdown, false)}">${formatValue(fund.max_drawdown)}</td>
-                    <td class="${getColorClass(fund.other, false)}">${formatValue(fund.other)}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -196,14 +187,19 @@
             
             sortedData.sort((a, b) => {
                 switch(sortBy) {
-                    case 'ytd':
-                        return (parseFloat(b.ytd) || 0) - (parseFloat(a.ytd) || 0);
-                    case 'ytd_asc':
-                        return (parseFloat(a.ytd) || 0) - (parseFloat(b.ytd) || 0);
                     case 'name':
                         return (a.product_name || '').localeCompare(b.product_name || '');
                     case 'manager':
                         return (a.manager || '').localeCompare(b.manager || '');
+                    case 'recent_week':
+                        return (parseFloat(b.recent_week) || 0) - (parseFloat(a.recent_week) || 0);
+                    case 'recent_week_asc':
+                        return (parseFloat(a.recent_week) || 0) - (parseFloat(b.recent_week) || 0);         
+                    case 'ytd':
+                        return (parseFloat(b.ytd) || 0) - (parseFloat(a.ytd) || 0);
+                    case 'ytd_asc':
+                        return (parseFloat(a.ytd) || 0) - (parseFloat(b.ytd) || 0);
+
                     default:
                         return 0;
                 }
@@ -236,31 +232,8 @@
             window.open('/api/export/pdf', '_blank');
         }
 
-        async function exportImage() {
-            window.open('/api/export/image', '_blank');
-        }
-
         async function exportExcel() {
             window.open('/api/export/excel', '_blank');
-        }
-
-        // 手动截图功能
-        async function captureScreenshot() {
-            try {
-                const tableContainer = document.querySelector('.table-container');
-                const canvas = await html2canvas(tableContainer, {
-                    scale: 2,
-                    backgroundColor: '#ffffff'
-                });
-                
-                const link = document.createElement('a');
-                link.download = `主观选股表格_${new Date().toISOString().split('T')[0]}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-            } catch (error) {
-                console.error('截图失败:', error);
-                alert('截图失败，请重试');
-            }
         }
 
         // 刷新数据
