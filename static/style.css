@@ -133,6 +133,33 @@ body {
     padding: 20px;
 }
 
+.strategy-filter {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.strategy-btn {
+    padding: 8px 16px;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin: 0 5px 10px 0;
+}
+
+.strategy-btn.active {
+    background: #667eea;
+    color: white;
+}
+
+.strategy-btn:hover:not(.active) {
+    background: #f0f3ff;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;

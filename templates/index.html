@@ -13,14 +13,14 @@
         <!-- 头部 -->
         <header class="header">
             <div class="header-content">
-                <h1><i class="fas fa-chart-line"></i> 主观选股 - 私募产品周报</h1>
+                <h1><i class="fas fa-chart-line"></i> 私募产品周报</h1>
                 <p class="subtitle">管理人/产品名称 & 区间指标对比</p>
             </div>
             <div class="export-controls">
-                <button onclick="exportPDF()" class="btn btn-primary">
+                <button onclick="exportPDF()" class="btn btn-warning">
                     <i class="fas fa-file-pdf"></i> 导出PDF
                 </button>
-                <button onclick="exportExcel()" class="btn btn-warning">
+                <button onclick="exportExcel()" class="btn btn-primary">
                     <i class="fas fa-file-excel"></i> 导出Excel
                 </button>
                 <button onclick="refreshData()" class="btn btn-secondary">
@@ -30,6 +30,12 @@
         </header>
 
         <!-- 筛选控制 -->
+        <div class="filter-controls">
+            <div class="strategy-filter">
+                <!-- 按钮将通过JS动态生成 -->
+                <div id="strategyButtons"></div>
+            </div>
+        </div>
         <div class="filter-controls">
             <div class="filter-group">
                 <label for="searchInput"><i class="fas fa-search"></i> 搜索:</label>
@@ -46,29 +52,6 @@
                     <option value="manager">管理人</option>
                 </select>
             </div>
-        </div>
-
-        <!-- 数据表格 -->
-        <div class="table-container">
-            <table id="fundTable">
-                <thead>
-                    <tr>
-                        <th>管理人</th>
-                        <th>产品名称</th>
-                        <th>净值起始日</th>
-                        <th>近一周(%)</th>
-                        <th>MTD(%)</th>
-                        <th>YTD(%)</th>
-                        <th>2024(%)</th>
-                        <th>2023(%)</th>
-                        <th>2022(%)</th>
-                        <th>最大回撤(%)</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                    <!-- 数据将通过JavaScript动态加载 -->
-                </tbody>
-            </table>
         </div>
 
         <!-- 统计信息 -->
@@ -100,6 +83,29 @@
             </div>
         </div>
 
+        <!-- 数据表格 -->
+        <div class="table-container">
+            <table id="fundTable">
+                <thead>
+                    <tr>
+                        <th>管理人</th>
+                        <th>产品名称</th>
+                        <th>净值起始日</th>
+                        <th>近一周(%)</th>
+                        <th>MTD(%)</th>
+                        <th>YTD(%)</th>
+                        <th>2024(%)</th>
+                        <th>2023(%)</th>
+                        <th>2022(%)</th>
+                        <th>最大回撤(%)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- 数据将通过JavaScript动态加载 -->
+                </tbody>
+            </table>
+        </div>
+
         <!-- 加载提示 -->
         <div id="loading" class="loading">
             <i class="fas fa-spinner fa-spin"></i> 加载数据中...
@@ -125,6 +131,7 @@
                 fundsData = data.funds;
                 renderTable(fundsData);
                 updateStats();
+                sortTable();
                 document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
             } catch (error) {
                 console.error('加载数据失败:', error);
@@ -133,6 +140,51 @@
             showLoading(false);
         }
 
+        // 加载策略按钮函数
+        async function loadStrategies() {
+            try {
+                const response = await fetch('/api/strategies');
+                const data = await response.json();
+                
+                const container = document.getElementById('strategyButtons');
+                
+                // 清空容器（除了"全部策略"按钮）
+                container.innerHTML = '';
+                
+                // 为每个策略创建按钮
+                data.strategies.forEach(strategy => {
+                    const btn = document.createElement('button');
+                    btn.className = 'strategy-btn';
+                    btn.textContent = strategy;
+                    btn.dataset.strategy = strategy;
+                    btn.onclick = () => filterByStrategy(strategy);
+                    container.appendChild(btn);
+                });
+                
+                console.log('策略按钮加载完成:', data.strategies);
+            } catch (error) {
+                console.error('加载策略失败:', error);
+            }
+        }
+
+        // 按策略筛选
+        async function filterByStrategy(strategy) {
+            // 更新按钮状态
+            document.querySelectorAll('.strategy-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.strategy === strategy);
+            });
+            
+            // 加载数据
+            const url = strategy === 'all' ? '/api/data' : `/api/data?strategy=${strategy}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            fundsData = data.funds;
+            renderTable(fundsData);
+            updateStats();
+            sortTable();
+        }
+        
         // 渲染表格
         function renderTable(data) {
             const tbody = document.getElementById('tableBody');
@@ -143,7 +195,7 @@
                 
                 // 数值格式化函数
                 const formatValue = (value) => {
-                    if (value === undefined || value === null) return '-';
+                    if (value === undefined || value === "nan") return '-';
                     const num = parseFloat(value);
                     if (isNaN(num)) return value;
                     return num.toFixed(2);
@@ -259,7 +311,10 @@
         }
 
         // 页面加载完成时初始化
-        document.addEventListener('DOMContentLoaded', loadData);
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();  // 你原来的加载数据函数
+            loadStrategies();  // 新增：加载策略按钮
+        });
 
         // 键盘快捷键
         document.addEventListener('keydown', (e) => {
