@@ -157,7 +157,7 @@ def create_pdf_with_toc():
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=(21 * cm, 21 * cm),
+        pagesize=(31 * cm, 21 * cm),
         rightMargin=0.5 * cm,
         leftMargin=0.5 * cm,
         topMargin=1 * cm,
@@ -265,8 +265,10 @@ def create_pdf_with_toc():
         "产品名称",
         "净值起始日",
         "近一周(%)",
-        "MTD(%)",
-        "YTD(%)",
+        "今年以来(%)",
+        "近一年(%)",
+        "近一年夏普",
+        "近一年最大回撤(%)",
         "2024(%)",
         "2023(%)",
         "2022(%)",
@@ -274,12 +276,14 @@ def create_pdf_with_toc():
     ]
 
     col_widths = [
-        3.0 * cm,
-        3.5 * cm,
         2.0 * cm,
-        1.5 * cm,
-        1.5 * cm,
-        1.8 * cm,
+        4.0 * cm,
+        2.0 * cm,
+        2.0 * cm,
+        2.0 * cm,
+        2.0 * cm,
+        2.5 * cm,
+        3.0 * cm,
         1.5 * cm,
         1.5 * cm,
         1.5 * cm,
@@ -316,13 +320,19 @@ def create_pdf_with_toc():
                 ),
                 str(item.get("start_date", "")),
                 format_value_with_color(item.get("recent_week", ""), CHINESE_FONT),
-                format_value_with_color(item.get("mtd", ""), CHINESE_FONT),
-                format_value_with_color(item.get("ytd", ""), CHINESE_FONT, True),
+                format_value_with_color(item.get("ytd", ""), CHINESE_FONT),
+                format_value_with_color(item.get("recent_year", ""), CHINESE_FONT),
+                format_value_with_color(
+                    item.get("recent_year_sharpe", ""), CHINESE_FONT
+                ),
+                format_value_with_color(
+                    item.get("recent_year_mdd", ""), CHINESE_FONT, True
+                ),
                 format_value_with_color(item.get("y2024", ""), CHINESE_FONT),
                 format_value_with_color(item.get("y2023", ""), CHINESE_FONT),
                 format_value_with_color(item.get("y2022", ""), CHINESE_FONT),
                 format_value_with_color(
-                    item.get("max_drawdown", ""), CHINESE_FONT, False
+                    item.get("max_drawdown", ""), CHINESE_FONT, True
                 ),
             ]
             table_data.append(row)

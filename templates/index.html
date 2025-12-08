@@ -46,8 +46,8 @@
                 <select id="sortSelect" onchange="sortTable()">
                     <option value="recent_week">近一周(%) 降序</option>
                     <option value="recent_week_asc">近一周(%) 升序</option>
-                    <option value="ytd">YTD(%) 降序</option>
-                    <option value="ytd_asc">YTD(%) 升序</option>
+                    <option value="ytd">今年以来(%) 降序</option>
+                    <option value="ytd_asc">今年以来(%) 升序</option>
                     <option value="name">产品名称</option>
                     <option value="manager">管理人</option>
                 </select>
@@ -64,21 +64,16 @@
                         <span class="stat-value" id="totalFunds">0</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">平均近一周</span>
+                        <span class="stat-label">近一周平均收益</span>
                         <span class="stat-value" id="avg_recent_week">0%</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">平均YTD</span>
+                        <span class="stat-label">今年以来平均收益</span>
                         <span class="stat-value" id="avgYtd">0%</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-label">最高YTD</span>
-                        <span class="stat-value" id="maxYtd">0%</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">最低YTD</span>
-                        <span class="stat-value" id="minYtd">0%</span>
-                    </div>
+                        <span class="stat-label">近一年平均收益</span>
+                        <span class="stat-value" id="avg_recent_year">0%</span>
                 </div>
             </div>
         </div>
@@ -92,8 +87,10 @@
                         <th>产品名称</th>
                         <th>净值起始日</th>
                         <th>近一周(%)</th>
-                        <th>MTD(%)</th>
-                        <th>YTD(%)</th>
+                        <th>今年以来(%)</th>
+                        <th>近一年(%)</th>
+                        <th>近一年夏普</th>
+                        <th>近一年最大回撤(%)</th>
                         <th>2024(%)</th>
                         <th>2023(%)</th>
                         <th>2022(%)</th>
@@ -215,12 +212,14 @@
                     <td class="product-name">${fund.product_name || '-'}</td>
                     <td>${fund.start_date || '-'}</td>
                     <td class="${getColorClass(fund.recent_week)} highlight">${formatValue(fund.recent_week)}</td>
-                    <td class="${getColorClass(fund.mtd)}">${formatValue(fund.mtd)}</td>
                     <td class="${getColorClass(fund.ytd)} highlight">${formatValue(fund.ytd)}</td>
+                    <td class="${getColorClass(fund.recent_year)}">${formatValue(fund.recent_year)}</td>
+                    <td class="${getColorClass(fund.recent_year_sharpe)}">${formatValue(fund.recent_year_sharpe)}</td>
+                    <td class="${getColorClass(fund.recent_year_mdd)}">${formatValue(fund.recent_year_mdd)}</td>
                     <td class="${getColorClass(fund.y2024)}">${formatValue(fund.y2024)}</td>
                     <td class="${getColorClass(fund.y2023)}">${formatValue(fund.y2023)}</td>
                     <td class="${getColorClass(fund.y2022)}">${formatValue(fund.y2022)}</td>
-                    <td class="${getColorClass(fund.max_drawdown, false)}">${formatValue(fund.max_drawdown)}</td>
+                    <td class="${getColorClass(fund.max_drawdown)}">${formatValue(fund.max_drawdown)}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -266,28 +265,37 @@
 
         // 更新统计信息
         function updateStats() {
+            const recent_year_values = fundsData
+                .map(fund => parseFloat(fund.recent_year))
+                .filter(val => !isNaN(val));
             const ytdValues = fundsData
                 .map(fund => parseFloat(fund.ytd))
                 .filter(val => !isNaN(val));
             const recent_week_values = fundsData
                 .map(fund => parseFloat(fund.recent_week))
                 .filter(val => !isNaN(val));
+            if (recent_year_values.length > 0) {
+                const sum = recent_year_values.reduce((a, b) => a + b, 0);
+                const avg = sum / recent_year_values.length;
+                
+                document.getElementById('avg_recent_year').textContent = avg.toFixed(2) + '%';
+            }
+            if (ytdValues.length > 0) {
+                const sum = ytdValues.reduce((a, b) => a + b, 0);
+                const avg = sum / ytdValues.length;
+                // const max = Math.max(...ytdValues);
+                // const min = Math.min(...ytdValues);
+                
+                document.getElementById('avgYtd').textContent = avg.toFixed(2) + '%';
+                // document.getElementById('maxYtd').textContent = max.toFixed(2) + '%';
+                // document.getElementById('minYtd').textContent = min.toFixed(2) + '%';
+            }
             if (recent_week_values.length > 0) {
                 const sum = recent_week_values.reduce((a, b) => a + b, 0);
                 const avg = sum / recent_week_values.length;
                 
                 document.getElementById('totalFunds').textContent = fundsData.length;
                 document.getElementById('avg_recent_week').textContent = avg.toFixed(2) + '%';
-            }
-            if (ytdValues.length > 0) {
-                const sum = ytdValues.reduce((a, b) => a + b, 0);
-                const avg = sum / ytdValues.length;
-                const max = Math.max(...ytdValues);
-                const min = Math.min(...ytdValues);
-                
-                document.getElementById('avgYtd').textContent = avg.toFixed(2) + '%';
-                document.getElementById('maxYtd').textContent = max.toFixed(2) + '%';
-                document.getElementById('minYtd').textContent = min.toFixed(2) + '%';
             }
         }
 
