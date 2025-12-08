@@ -45,7 +45,29 @@ body {
     opacity: 0.9;
     font-weight: 400;
 }
+/* 基准行样式 */
+.benchmark-row {
+    background-color: #fff8e1 !important;  /* 淡黄色背景 */
+    font-weight: bold !important;
+    border-top: 2px solid #ffc107 !important;
+    border-bottom: 2px solid #ffc107 !important;
+}
 
+/* 鼠标悬停时的效果 */
+.benchmark-row:hover {
+    background-color: #fff3cd !important;
+}
+
+/* 基准行中单元格的特殊样式 */
+.benchmark-row td {
+    color: #333 !important;
+}
+
+/* 基准列特殊样式 */
+.benchmark-row td:first-child {
+    color: #d32f2f !important;  /* 红色强调 */
+    font-weight: bold !important;
+}
 .export-controls {
     display: flex;
     gap: 12px;

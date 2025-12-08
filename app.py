@@ -262,6 +262,7 @@ def create_pdf_with_toc():
     # 添加策略内容（与之前相同的代码）
     headers = [
         "管理人",
+        "规模",
         "产品名称",
         "净值起始日",
         "近一周(%)",
@@ -277,6 +278,7 @@ def create_pdf_with_toc():
 
     col_widths = [
         2.0 * cm,
+        4.0 * cm,
         4.0 * cm,
         2.0 * cm,
         2.0 * cm,
@@ -316,6 +318,10 @@ def create_pdf_with_toc():
                 ),
                 Paragraph(
                     str(item.get("product_name", "")),
+                    ParagraphStyle("Cell", fontName=CHINESE_FONT, fontSize=7),
+                ),
+                Paragraph(
+                    str(item.get("scale", "")),
                     ParagraphStyle("Cell", fontName=CHINESE_FONT, fontSize=7),
                 ),
                 str(item.get("start_date", "")),
