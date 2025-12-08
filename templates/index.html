@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <!-- 头部 -->
@@ -83,175 +85,175 @@
                     <div class="stat-item">
                         <span class="stat-label">近一年平均收益</span>
                         <span class="stat-value" id="avg_recent_year">0%</span>
+                    </div>
                 </div>
             </div>
+
+            <!-- 数据表格 -->
+            <div class="table-container">
+                <table id="fundTable">
+                    <thead>
+                        <tr>
+                            <th>管理人</th>
+                            <th>规模</th>
+                            <th>产品名称</th>
+                            <th>净值起始日</th>
+                            <th>近一周(%)</th>
+                            <th>今年以来(%)</th>
+                            <th>近一年(%)</th>
+                            <th>近一年夏普</th>
+                            <th>近一年最大回撤(%)</th>
+                            <th>2024(%)</th>
+                            <th>2023(%)</th>
+                            <th>2022(%)</th>
+                            <th>最大回撤(%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- 数据将通过JavaScript动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 加载提示 -->
+            <div id="loading" class="loading">
+                <i class="fas fa-spinner fa-spin"></i> 加载数据中...
+            </div>
+
+            <footer class="footer">
+                <p>数据更新时间: <span id="updateTime"></span></p>
+                <p class="copyright">© Euclid-Jie 2025 私募产品周报 | 技术支持: Python Flask + JavaScript</p>
+            </footer>
         </div>
 
-        <!-- 数据表格 -->
-        <div class="table-container">
-            <table id="fundTable">
-                <thead>
-                    <tr>
-                        <th>管理人</th>
-                        <th>规模</th>
-                        <th>产品名称</th>
-                        <th>净值起始日</th>
-                        <th>近一周(%)</th>
-                        <th>今年以来(%)</th>
-                        <th>近一年(%)</th>
-                        <th>近一年夏普</th>
-                        <th>近一年最大回撤(%)</th>
-                        <th>2024(%)</th>
-                        <th>2023(%)</th>
-                        <th>2022(%)</th>
-                        <th>最大回撤(%)</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                    <!-- 数据将通过JavaScript动态加载 -->
-                </tbody>
-            </table>
-        </div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script>
+            let allFundsData = [];
+            let fundsData = [];
+            let currentStrategy = 'all';
+            let currentScale = 'all';
+            let currentSearch = '';
 
-        <!-- 加载提示 -->
-        <div id="loading" class="loading">
-            <i class="fas fa-spinner fa-spin"></i> 加载数据中...
-        </div>
-
-        <footer class="footer">
-            <p>数据更新时间: <span id="updateTime"></span></p>
-            <p class="copyright">© Euclid-Jie 2025 私募产品周报 | 技术支持: Python Flask + JavaScript</p>
-        </footer>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script>
-        let allFundsData = [];
-        let fundsData = [];
-        let currentStrategy = 'all';
-        let currentScale = 'all';
-        let currentSearch = '';
-
-        // 加载数据
-        async function loadData() {
-            showLoading(true);
-            try {
-                const response = await fetch('/api/data');
-                const data = await response.json();
-                allFundsData = data.funds;
-                fundsData = [...allFundsData];
-                filterAndRender();
-                document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
-            } catch (error) {
-                console.error('加载数据失败:', error);
-                alert('加载数据失败，请检查网络连接');
+            // 加载数据
+            async function loadData() {
+                showLoading(true);
+                try {
+                    const response = await fetch('/api/data');
+                    const data = await response.json();
+                    allFundsData = data.funds;
+                    fundsData = [...allFundsData];
+                    filterAndRender();
+                    document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
+                } catch (error) {
+                    console.error('加载数据失败:', error);
+                    alert('加载数据失败，请检查网络连接');
+                }
+                showLoading(false);
             }
-            showLoading(false);
-        }
 
-        // 加载策略按钮函数
-        async function loadStrategies() {
-            try {
-                const response = await fetch('/api/strategies');
-                const data = await response.json();
-                
-                const container = document.getElementById('strategyButtons');
-                
-                // 清空容器（除了"全部策略"按钮）
-                container.innerHTML = '';
-                
-                // 为每个策略创建按钮
-                data.strategies.forEach(strategy => {
-                    const btn = document.createElement('button');
-                    btn.className = 'strategy-btn';
-                    btn.textContent = strategy;
-                    btn.dataset.strategy = strategy;
-                    btn.onclick = () => filterByStrategy(strategy);
-                    container.appendChild(btn);
+            // 加载策略按钮函数
+            async function loadStrategies() {
+                try {
+                    const response = await fetch('/api/strategies');
+                    const data = await response.json();
+
+                    const container = document.getElementById('strategyButtons');
+
+                    // 清空容器（除了"全部策略"按钮）
+                    container.innerHTML = '';
+
+                    // 为每个策略创建按钮
+                    data.strategies.forEach(strategy => {
+                        const btn = document.createElement('button');
+                        btn.className = 'strategy-btn';
+                        btn.textContent = strategy;
+                        btn.dataset.strategy = strategy;
+                        btn.onclick = () => filterByStrategy(strategy);
+                        container.appendChild(btn);
+                    });
+
+                    console.log('策略按钮加载完成:', data.strategies);
+                } catch (error) {
+                    console.error('加载策略失败:', error);
+                }
+            }
+
+            // 按策略筛选
+            async function filterByStrategy(strategy) {
+                currentStrategy = strategy;
+                document.querySelectorAll('.strategy-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.strategy === strategy);
                 });
-                
-                console.log('策略按钮加载完成:', data.strategies);
-            } catch (error) {
-                console.error('加载策略失败:', error);
+                filterAndRender();
             }
-        }
 
-        // 按策略筛选
-        async function filterByStrategy(strategy) {
-            currentStrategy = strategy;
-            document.querySelectorAll('.strategy-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.strategy === strategy);
-            });
-            filterAndRender();
-        }
+            // 按规模筛选
+            function filterByScale() {
+                currentScale = document.getElementById('scaleSelect').value;
+                filterAndRender();
+            }
 
-        // 按规模筛选
-        function filterByScale() {
-            currentScale = document.getElementById('scaleSelect').value;
-            filterAndRender();
-        }
+            // 搜索筛选
+            function filterTable() {
+                currentSearch = document.getElementById('searchInput').value.toLowerCase();
+                filterAndRender();
+            }
 
-        // 搜索筛选
-        function filterTable() {
-            currentSearch = document.getElementById('searchInput').value.toLowerCase();
-            filterAndRender();
-        }
+            // 统一筛选和渲染
+            function filterAndRender() {
+                fundsData = allFundsData.filter(fund => {
+                    // 策略筛选
+                    if (currentStrategy !== 'all' && fund.strategy !== currentStrategy) return false;
+                    // 规模筛选
+                    if (currentScale === 'large' && fund.scale_level === '小厂') return false;
+                    if (currentScale === 'small' && fund.scale_level === '大厂') return false;
+                    // 搜索筛选
+                    if (currentSearch) {
+                        const manager = (fund.manager || '').toLowerCase();
+                        const pname = (fund.product_name || '').toLowerCase();
+                        if (!manager.includes(currentSearch) && !pname.includes(currentSearch)) return false;
+                    }
+                    return true;
+                });
+                sortTable(); // 排序后渲染
+                updateStats();
+            }
 
-        // 统一筛选和渲染
-        function filterAndRender() {
-            fundsData = allFundsData.filter(fund => {
-                // 策略筛选
-                if (currentStrategy !== 'all' && fund.strategy !== currentStrategy) return false;
-                // 规模筛选
-                if (currentScale === 'large' && fund.scale_level !== '大厂') return false;
-                if (currentScale === 'small' && fund.scale_level !== '小厂') return false;
-                // 搜索筛选
-                if (currentSearch) {
-                    const manager = (fund.manager || '').toLowerCase();
-                    const pname = (fund.product_name || '').toLowerCase();
-                    if (!manager.includes(currentSearch) && !pname.includes(currentSearch)) return false;
-                }
-                return true;
-            });
-            sortTable(); // 排序后渲染
-            updateStats();
-        }
+            // 渲染表格
+            function renderTable(data) {
+                const tbody = document.getElementById('tableBody');
+                tbody.innerHTML = '';
 
-        // 渲染表格
-        function renderTable(data) {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
+                data.forEach(fund => {
+                    const row = document.createElement('tr');
 
-            data.forEach(fund => {
-                const row = document.createElement('tr');
-                
-                // 检查是否为基准行
-                const isBenchmark = fund.manager === "基准";
-                if (isBenchmark) {
-                    row.classList.add('benchmark-row');  // 添加基准行样式类
-                }
-                
-                // 数值格式化函数
-                const formatValue = (value) => {
-                    if (value === undefined || value === "nan") return '-';
-                    const num = parseFloat(value);
-                    if (isNaN(num)) return value;
-                    return num.toFixed(2);
-                };
+                    // 检查是否为基准行
+                    const isBenchmark = fund.manager === "基准";
+                    if (isBenchmark) {
+                        row.classList.add('benchmark-row');  // 添加基准行样式类
+                    }
 
-                // 添加颜色类
-                const getColorClass = (value, isPositiveGood = true) => {
-                    const num = parseFloat(value);
-                    if (isNaN(num)) return '';
-                    if (num > 0) return isPositiveGood ? 'positive' : 'negative';
-                    if (num < 0) return isPositiveGood ? 'negative' : 'positive';
-                    return '';
-                };
+                    // 数值格式化函数
+                    const formatValue = (value) => {
+                        if (value === undefined || value === "nan") return '-';
+                        const num = parseFloat(value);
+                        if (isNaN(num)) return value;
+                        return num.toFixed(2);
+                    };
 
-                row.innerHTML = `
+                    // 添加颜色类
+                    const getColorClass = (value, isPositiveGood = true) => {
+                        const num = parseFloat(value);
+                        if (isNaN(num)) return '';
+                        if (num > 0) return isPositiveGood ? 'positive' : 'negative';
+                        if (num < 0) return isPositiveGood ? 'negative' : 'positive';
+                        return '';
+                    };
+
+                    row.innerHTML = `
                     <td>${fund.manager || '-'}</td>
-                    <td class="scale">${fund.scale  || '-'}</td>
+                    <td class="scale">${fund.scale || '-'}</td>
                     <td class="product-name">${fund.product_name || '-'}</td>
                     <td>${fund.start_date || '-'}</td>
                     <td class="${getColorClass(fund.recent_week)} highlight">${formatValue(fund.recent_week)}</td>
@@ -264,112 +266,120 @@
                     <td class="${getColorClass(fund.y2022)}">${formatValue(fund.y2022)}</td>
                     <td class="${getColorClass(fund.max_drawdown)}">${formatValue(fund.max_drawdown)}</td>
                 `;
-                tbody.appendChild(row);
-            });
-        }
+                    tbody.appendChild(row);
+                });
+            }
 
-        // 排序表格
-        function sortTable() {
-            const sortBy = document.getElementById('sortSelect').value;
-            const sortedData = [...fundsData];
-            sortedData.sort((a, b) => {
-                switch(sortBy) {
-                    case 'name':
-                        return (a.product_name || '').localeCompare(b.product_name || '');
-                    case 'manager':
-                        return (a.manager || '').localeCompare(b.manager || '');
-                    case 'recent_week':
-                        return (parseFloat(b.recent_week) || 0) - (parseFloat(a.recent_week) || 0);
-                    case 'recent_week_asc':
-                        return (parseFloat(a.recent_week) || 0) - (parseFloat(b.recent_week) || 0);         
-                    case 'ytd':
-                        return (parseFloat(b.ytd) || 0) - (parseFloat(a.ytd) || 0);
-                    case 'ytd_asc':
-                        return (parseFloat(a.ytd) || 0) - (parseFloat(b.ytd) || 0);
-                    default:
-                        return 0;
+            // 排序表格
+            function sortTable() {
+                const sortBy = document.getElementById('sortSelect').value;
+                const sortedData = [...fundsData];
+                sortedData.sort((a, b) => {
+                    switch (sortBy) {
+                        case 'name':
+                            return (a.product_name || '').localeCompare(b.product_name || '');
+                        case 'manager':
+                            return (a.manager || '').localeCompare(b.manager || '');
+                        case 'recent_week':
+                            return (parseFloat(b.recent_week) || 0) - (parseFloat(a.recent_week) || 0);
+                        case 'recent_week_asc':
+                            return (parseFloat(a.recent_week) || 0) - (parseFloat(b.recent_week) || 0);
+                        case 'ytd':
+                            return (parseFloat(b.ytd) || 0) - (parseFloat(a.ytd) || 0);
+                        case 'ytd_asc':
+                            return (parseFloat(a.ytd) || 0) - (parseFloat(b.ytd) || 0);
+                        default:
+                            return 0;
+                    }
+                });
+                renderTable(sortedData);
+                updateStats();
+            }
+
+            // 更新统计信息
+            function updateStats() {
+                // 排除 scale_level 为 'benchmark' 的条目
+                const nonBenchmark = fundsData.filter(fund => fund.scale_level !== 'benchmark');
+
+                // 更新总数（不包含 benchmark）
+                document.getElementById('totalFunds').textContent = nonBenchmark.length;
+
+                const recent_year_values = nonBenchmark
+                    .map(fund => parseFloat(fund.recent_year))
+                    .filter(val => !isNaN(val));
+                const ytdValues = nonBenchmark
+                    .map(fund => parseFloat(fund.ytd))
+                    .filter(val => !isNaN(val));
+                const recent_week_values = nonBenchmark
+                    .map(fund => parseFloat(fund.recent_week))
+                    .filter(val => !isNaN(val));
+
+                if (recent_year_values.length > 0) {
+                    const sum = recent_year_values.reduce((a, b) => a + b, 0);
+                    const avg = sum / recent_year_values.length;
+                    document.getElementById('avg_recent_year').textContent = avg.toFixed(2) + '%';
+                } else {
+                    document.getElementById('avg_recent_year').textContent = '0%';
+                }
+
+                if (ytdValues.length > 0) {
+                    const sum = ytdValues.reduce((a, b) => a + b, 0);
+                    const avg = sum / ytdValues.length;
+                    document.getElementById('avgYtd').textContent = avg.toFixed(2) + '%';
+                } else {
+                    document.getElementById('avgYtd').textContent = '0%';
+                }
+
+                if (recent_week_values.length > 0) {
+                    const sum = recent_week_values.reduce((a, b) => a + b, 0);
+                    const avg = sum / recent_week_values.length;
+                    document.getElementById('avg_recent_week').textContent = avg.toFixed(2) + '%';
+                } else {
+                    document.getElementById('avg_recent_week').textContent = '0%';
+                }
+            }
+
+            // 导出功能
+            async function exportPDF() {
+                window.open('/api/export/pdf', '_blank');
+            }
+
+            async function exportExcel() {
+                window.open('/api/export/excel', '_blank');
+            }
+
+            // 刷新数据
+            function refreshData() {
+                loadData();
+            }
+
+            // 显示/隐藏加载提示
+            function showLoading(show) {
+                document.getElementById('loading').style.display = show ? 'flex' : 'none';
+            }
+
+            // 页面加载完成时初始化
+            document.addEventListener('DOMContentLoaded', function () {
+                loadData();  // 你原来的加载数据函数
+                loadStrategies();  // 新增：加载策略按钮
+            });
+
+            // 键盘快捷键
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'p') {
+                    e.preventDefault();
+                    exportPDF();
+                }
+                if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    exportExcel();
+                }
+                if (e.ctrlKey && e.key === 'f') {
+                    e.preventDefault();
+                    document.getElementById('searchInput').focus();
                 }
             });
-            renderTable(sortedData);
-            updateStats();
-        }
-
-        // 更新统计信息
-        function updateStats() {
-            const recent_year_values = fundsData
-                .map(fund => parseFloat(fund.recent_year))
-                .filter(val => !isNaN(val));
-            const ytdValues = fundsData
-                .map(fund => parseFloat(fund.ytd))
-                .filter(val => !isNaN(val));
-            const recent_week_values = fundsData
-                .map(fund => parseFloat(fund.recent_week))
-                .filter(val => !isNaN(val));
-            if (recent_year_values.length > 0) {
-                const sum = recent_year_values.reduce((a, b) => a + b, 0);
-                const avg = sum / recent_year_values.length;
-                
-                document.getElementById('avg_recent_year').textContent = avg.toFixed(2) + '%';
-            }
-            if (ytdValues.length > 0) {
-                const sum = ytdValues.reduce((a, b) => a + b, 0);
-                const avg = sum / ytdValues.length;
-                // const max = Math.max(...ytdValues);
-                // const min = Math.min(...ytdValues);
-                
-                document.getElementById('avgYtd').textContent = avg.toFixed(2) + '%';
-                // document.getElementById('maxYtd').textContent = max.toFixed(2) + '%';
-                // document.getElementById('minYtd').textContent = min.toFixed(2) + '%';
-            }
-            if (recent_week_values.length > 0) {
-                const sum = recent_week_values.reduce((a, b) => a + b, 0);
-                const avg = sum / recent_week_values.length;
-                
-                document.getElementById('totalFunds').textContent = fundsData.length;
-                document.getElementById('avg_recent_week').textContent = avg.toFixed(2) + '%';
-            }
-        }
-
-        // 导出功能
-        async function exportPDF() {
-            window.open('/api/export/pdf', '_blank');
-        }
-
-        async function exportExcel() {
-            window.open('/api/export/excel', '_blank');
-        }
-
-        // 刷新数据
-        function refreshData() {
-            loadData();
-        }
-
-        // 显示/隐藏加载提示
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'flex' : 'none';
-        }
-
-        // 页面加载完成时初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            loadData();  // 你原来的加载数据函数
-            loadStrategies();  // 新增：加载策略按钮
-        });
-
-        // 键盘快捷键
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'p') {
-                e.preventDefault();
-                exportPDF();
-            }
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                exportExcel();
-            }
-            if (e.ctrlKey && e.key === 'f') {
-                e.preventDefault();
-                document.getElementById('searchInput').focus();
-            }
-        });
-    </script>
+        </script>
 </body>
+
 </html>
