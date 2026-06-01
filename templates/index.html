@@ -1,385 +1,266 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>私募产品周报</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
-    <div class="container">
-        <!-- 头部 -->
-        <header class="header">
-            <div class="header-content">
-                <h1><i class="fas fa-chart-line"></i> 私募产品周报</h1>
-                <p class="subtitle">管理人/产品名称 & 区间指标对比</p>
-            </div>
-            <div class="export-controls">
-                <button onclick="exportPDF()" class="btn btn-warning">
-                    <i class="fas fa-file-pdf"></i> 导出PDF
-                </button>
-                <button onclick="exportExcel()" class="btn btn-primary">
-                    <i class="fas fa-file-excel"></i> 导出Excel
-                </button>
-                <button onclick="refreshData()" class="btn btn-secondary">
-                    <i class="fas fa-sync-alt"></i> 刷新数据
-                </button>
-            </div>
-        </header>
 
-        <!-- 筛选控制 -->
-        <div class="filter-controls">
-            <div class="strategy-filter">
-                <!-- 按钮将通过JS动态生成 -->
-                <div id="strategyButtons"></div>
-            </div>
-        </div>
-        <div class="filter-controls">
-            <div class="filter-group">
-                <label for="searchInput"><i class="fas fa-search"></i> 搜索:</label>
-                <input type="text" id="searchInput" placeholder="搜索产品名称或管理人..." onkeyup="filterTable()">
-            </div>
-            <div class="filter-group">
-                <label for="scaleSelect">管理人规模</label>
-                <select id="scaleSelect" onchange="filterByScale()">
-                    <option value="small">50亿以下</option>
-                    <option value="large">50亿及以上</option>
-                    <option value="all" selected>全部</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label for="sortSelect">排序:</label>
-                <select id="sortSelect" onchange="sortTable()">
-                    <option value="recent_week">近一周(%) 降序</option>
-                    <option value="recent_week_asc">近一周(%) 升序</option>
-                    <option value="ytd">今年以来(%) 降序</option>
-                    <option value="ytd_asc">今年以来(%) 升序</option>
-                    <option value="name">产品名称</option>
-                    <option value="manager">管理人</option>
-                </select>
-            </div>
+<header class="header">
+    <div class="header-content">
+        <h1><i class="fas fa-chart-line"></i> 私募产品周报 <span class="header-meta">近一周 {{ week_begin }} ~ {{ week_end }} &nbsp;·&nbsp; 今年以来 {{ ytd_begin }} ~ {{ ytd_end }}</span></h1>
+    </div>
+    <div class="export-controls">
+        <button onclick="exportPDF()" class="btn btn-warning"><i class="fas fa-file-pdf"></i> PDF</button>
+        <button onclick="exportExcel()" class="btn btn-primary"><i class="fas fa-file-excel"></i> Excel</button>
+        <button onclick="refreshData()" class="btn btn-secondary"><i class="fas fa-sync-alt"></i> 刷新</button>
+    </div>
+</header>
 
-        </div>
+<div class="strategy-bar" id="strategyButtons"></div>
 
-        <!-- 统计信息 -->
-        <div class="stats-panel">
-            <div class="stat-card">
-                <h3><i class="fas fa-calculator"></i> 统计概览</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">产品总数</span>
-                        <span class="stat-value" id="totalFunds">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">近一周平均收益</span>
-                        <span class="stat-value" id="avg_recent_week">0%</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">今年以来平均收益</span>
-                        <span class="stat-value" id="avgYtd">0%</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">近一年平均收益</span>
-                        <span class="stat-value" id="avg_recent_year">0%</span>
-                    </div>
-                </div>
-            </div>
+<div class="stats-bar">
+    <div class="hstat">
+        <div class="hstat-label">产品总数</div>
+        <div class="hstat-value" id="totalFunds">—</div>
+    </div>
+    <div class="hstat">
+        <div class="hstat-label">近一周均值</div>
+        <div class="hstat-value" id="avg_recent_week">—</div>
+    </div>
+    <div class="hstat">
+        <div class="hstat-label">今年以来均值</div>
+        <div class="hstat-value" id="avgYtd">—</div>
+    </div>
+    <div class="hstat">
+        <div class="hstat-label">近一年均值</div>
+        <div class="hstat-value" id="avg_recent_year">—</div>
+    </div>
+</div>
 
-            <!-- 数据表格 -->
-            <div class="table-container">
-                <table id="fundTable">
-                    <thead>
-                        <tr>
-                            <th>管理人</th>
-                            <th>规模</th>
-                            <th>产品名称</th>
-                            <th>净值起始日</th>
-                            <th>近一周(%)</th>
-                            <th>今年以来(%)</th>
-                            <th>近一年(%)</th>
-                            <th>近一年夏普</th>
-                            <th>近一年最大回撤(%)</th>
-                            <th>2024(%)</th>
-                            <th>2023(%)</th>
-                            <th>2022(%)</th>
-                            <th>最大回撤(%)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody">
-                        <!-- 数据将通过JavaScript动态加载 -->
-                    </tbody>
-                </table>
-            </div>
+<div class="filter-controls">
+    <div class="filter-group">
+        <label><i class="fas fa-search"></i> 搜索</label>
+        <input type="text" id="searchInput" placeholder="产品名称或管理人…" onkeyup="filterTable()">
+    </div>
+    <div class="filter-group">
+        <label>管理人规模</label>
+        <select id="scaleSelect" onchange="filterByScale()">
+            <option value="all" selected>全部</option>
+            <option value="large">50亿及以上</option>
+            <option value="small">50亿以下</option>
+        </select>
+    </div>
+    <div class="filter-group">
+        <label>排序</label>
+        <select id="sortSelect" onchange="sortTable()">
+            <option value="recent_week">近一周 ↓</option>
+            <option value="recent_week_asc">近一周 ↑</option>
+            <option value="ytd">今年以来 ↓</option>
+            <option value="ytd_asc">今年以来 ↑</option>
+            <option value="name">产品名称</option>
+            <option value="manager">管理人</option>
+        </select>
+    </div>
+    <div style="font-size:11px; color:var(--muted)">
+        更新时间: <span id="updateTime">—</span>
+    </div>
+</div>
 
-            <!-- 加载提示 -->
-            <div id="loading" class="loading">
-                <i class="fas fa-spinner fa-spin"></i> 加载数据中...
-            </div>
+<div class="table-wrapper">
+    <div class="table-container">
+        <table id="fundTable">
+            <thead>
+                <tr>
+                    <th>管理人</th>
+                    <th>规模</th>
+                    <th>产品名称</th>
+                    <th>净值起始日</th>
+                    <th>近一周(%)</th>
+                    <th>今年以来(%)</th>
+                    <th>近一年(%)</th>
+                    <th>近一年夏普</th>
+                    <th>近一年最大回撤(%)</th>
+                    <th>2025(%)</th>
+                    <th>2024(%)</th>
+                    <th>2023(%)</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
 
-            <footer class="footer">
-                <p>数据更新时间: <span id="updateTime"></span></p>
-                <p class="copyright">© Euclid-Jie 2025 私募产品周报 | 技术支持: Python Flask + JavaScript</p>
-            </footer>
-        </div>
+<div id="loading" class="loading">
+    <i class="fas fa-spinner fa-spin"></i> 加载数据中…
+</div>
 
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-        <script>
-            let allFundsData = [];
-            let fundsData = [];
-            let currentStrategy = 'all';
-            let currentScale = 'all';
-            let currentSearch = '';
+<footer class="footer">
+    <span>© Euclid-Jie 2025 私募产品周报</span>
+    <span class="copyright">Python Flask + JavaScript</span>
+</footer>
 
-            // 加载数据
-            async function loadData() {
-                showLoading(true);
-                try {
-                    const response = await fetch('/api/data');
-                    const data = await response.json();
-                    allFundsData = data.funds;
-                    fundsData = [...allFundsData];
-                    filterAndRender();
-                    document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
-                } catch (error) {
-                    console.error('加载数据失败:', error);
-                    alert('加载数据失败，请检查网络连接');
-                }
-                showLoading(false);
-            }
+<script>
+    let allFundsData = [];
+    let fundsData = [];
+    let currentStrategy = 'all';
+    let currentScale = 'all';
+    let currentSearch = '';
 
-            // 加载策略按钮函数
-            async function loadStrategies() {
-                try {
-                    const response = await fetch('/api/strategies');
-                    const data = await response.json();
+    async function loadData() {
+        showLoading(true);
+        try {
+            const response = await fetch('/api/data');
+            const data = await response.json();
+            allFundsData = data.funds;
+            fundsData = [...allFundsData];
+            filterAndRender();
+            document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
+        } catch (e) {
+            alert('加载数据失败，请检查网络连接');
+        }
+        showLoading(false);
+    }
 
-                    const container = document.getElementById('strategyButtons');
+    async function loadStrategies() {
+        try {
+            const data = await (await fetch('/api/strategies')).json();
+            const container = document.getElementById('strategyButtons');
+            container.innerHTML = '';
 
-                    // 清空容器（除了"全部策略"按钮）
-                    container.innerHTML = '';
+            const allBtn = document.createElement('button');
+            allBtn.className = 'strategy-btn active';
+            allBtn.textContent = '全部';
+            allBtn.dataset.strategy = 'all';
+            allBtn.onclick = () => filterByStrategy('all');
+            container.appendChild(allBtn);
 
-                    // 为每个策略创建按钮
-                    data.strategies.forEach(strategy => {
-                        const btn = document.createElement('button');
-                        btn.className = 'strategy-btn';
-                        btn.textContent = strategy;
-                        btn.dataset.strategy = strategy;
-                        btn.onclick = () => filterByStrategy(strategy);
-                        container.appendChild(btn);
-                    });
-
-                    console.log('策略按钮加载完成:', data.strategies);
-                } catch (error) {
-                    console.error('加载策略失败:', error);
-                }
-            }
-
-            // 按策略筛选
-            async function filterByStrategy(strategy) {
-                currentStrategy = strategy;
-                document.querySelectorAll('.strategy-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.strategy === strategy);
-                });
-                filterAndRender();
-            }
-
-            // 按规模筛选
-            function filterByScale() {
-                currentScale = document.getElementById('scaleSelect').value;
-                filterAndRender();
-            }
-
-            // 搜索筛选
-            function filterTable() {
-                currentSearch = document.getElementById('searchInput').value.toLowerCase();
-                filterAndRender();
-            }
-
-            // 统一筛选和渲染
-            function filterAndRender() {
-                fundsData = allFundsData.filter(fund => {
-                    // 策略筛选
-                    if (currentStrategy !== 'all' && fund.strategy !== currentStrategy) return false;
-                    // 规模筛选
-                    if (currentScale === 'large' && fund.scale_level === '小厂') return false;
-                    if (currentScale === 'small' && fund.scale_level === '大厂') return false;
-                    // 搜索筛选
-                    if (currentSearch) {
-                        const manager = (fund.manager || '').toLowerCase();
-                        const pname = (fund.product_name || '').toLowerCase();
-                        if (!manager.includes(currentSearch) && !pname.includes(currentSearch)) return false;
-                    }
-                    return true;
-                });
-                sortTable(); // 排序后渲染
-                updateStats();
-            }
-
-            // 渲染表格
-            function renderTable(data) {
-                const tbody = document.getElementById('tableBody');
-                tbody.innerHTML = '';
-
-                data.forEach(fund => {
-                    const row = document.createElement('tr');
-
-                    // 检查是否为基准行
-                    const isBenchmark = fund.manager === "基准";
-                    if (isBenchmark) {
-                        row.classList.add('benchmark-row');  // 添加基准行样式类
-                    }
-
-                    // 数值格式化函数
-                    const formatValue = (value) => {
-                        if (value === undefined || value === "nan") return '-';
-                        const num = parseFloat(value);
-                        if (isNaN(num)) return value;
-                        return num.toFixed(2);
-                    };
-
-                    // 添加颜色类
-                    const getColorClass = (value, isPositiveGood = true) => {
-                        const num = parseFloat(value);
-                        if (isNaN(num)) return '';
-                        if (num > 0) return isPositiveGood ? 'positive' : 'negative';
-                        if (num < 0) return isPositiveGood ? 'negative' : 'positive';
-                        return '';
-                    };
-
-                    row.innerHTML = `
-                    <td>${fund.manager || '-'}</td>
-                    <td class="scale">${fund.scale || '-'}</td>
-                    <td class="product-name">${fund.product_name || '-'}</td>
-                    <td>${fund.start_date || '-'}</td>
-                    <td class="${getColorClass(fund.recent_week)} highlight">${formatValue(fund.recent_week)}</td>
-                    <td class="${getColorClass(fund.ytd)} highlight">${formatValue(fund.ytd)}</td>
-                    <td class="${getColorClass(fund.recent_year)}">${formatValue(fund.recent_year)}</td>
-                    <td class="${getColorClass(fund.recent_year_sharpe)}">${formatValue(fund.recent_year_sharpe)}</td>
-                    <td class="${getColorClass(fund.recent_year_mdd)}">${formatValue(fund.recent_year_mdd)}</td>
-                    <td class="${getColorClass(fund.y2024)}">${formatValue(fund.y2024)}</td>
-                    <td class="${getColorClass(fund.y2023)}">${formatValue(fund.y2023)}</td>
-                    <td class="${getColorClass(fund.y2022)}">${formatValue(fund.y2022)}</td>
-                    <td class="${getColorClass(fund.max_drawdown)}">${formatValue(fund.max_drawdown)}</td>
-                `;
-                    tbody.appendChild(row);
-                });
-            }
-
-            // 排序表格
-            function sortTable() {
-                const sortBy = document.getElementById('sortSelect').value;
-                const sortedData = [...fundsData];
-                sortedData.sort((a, b) => {
-                    switch (sortBy) {
-                        case 'name':
-                            return (a.product_name || '').localeCompare(b.product_name || '');
-                        case 'manager':
-                            return (a.manager || '').localeCompare(b.manager || '');
-                        case 'recent_week':
-                            return (parseFloat(b.recent_week) || 0) - (parseFloat(a.recent_week) || 0);
-                        case 'recent_week_asc':
-                            return (parseFloat(a.recent_week) || 0) - (parseFloat(b.recent_week) || 0);
-                        case 'ytd':
-                            return (parseFloat(b.ytd) || 0) - (parseFloat(a.ytd) || 0);
-                        case 'ytd_asc':
-                            return (parseFloat(a.ytd) || 0) - (parseFloat(b.ytd) || 0);
-                        default:
-                            return 0;
-                    }
-                });
-                renderTable(sortedData);
-                updateStats();
-            }
-
-            // 更新统计信息
-            function updateStats() {
-                // 排除 scale_level 为 'benchmark' 的条目
-                const nonBenchmark = fundsData.filter(fund => fund.scale_level !== 'benchmark');
-
-                // 更新总数（不包含 benchmark）
-                document.getElementById('totalFunds').textContent = nonBenchmark.length;
-
-                const recent_year_values = nonBenchmark
-                    .map(fund => parseFloat(fund.recent_year))
-                    .filter(val => !isNaN(val));
-                const ytdValues = nonBenchmark
-                    .map(fund => parseFloat(fund.ytd))
-                    .filter(val => !isNaN(val));
-                const recent_week_values = nonBenchmark
-                    .map(fund => parseFloat(fund.recent_week))
-                    .filter(val => !isNaN(val));
-
-                if (recent_year_values.length > 0) {
-                    const sum = recent_year_values.reduce((a, b) => a + b, 0);
-                    const avg = sum / recent_year_values.length;
-                    document.getElementById('avg_recent_year').textContent = avg.toFixed(2) + '%';
-                } else {
-                    document.getElementById('avg_recent_year').textContent = '0%';
-                }
-
-                if (ytdValues.length > 0) {
-                    const sum = ytdValues.reduce((a, b) => a + b, 0);
-                    const avg = sum / ytdValues.length;
-                    document.getElementById('avgYtd').textContent = avg.toFixed(2) + '%';
-                } else {
-                    document.getElementById('avgYtd').textContent = '0%';
-                }
-
-                if (recent_week_values.length > 0) {
-                    const sum = recent_week_values.reduce((a, b) => a + b, 0);
-                    const avg = sum / recent_week_values.length;
-                    document.getElementById('avg_recent_week').textContent = avg.toFixed(2) + '%';
-                } else {
-                    document.getElementById('avg_recent_week').textContent = '0%';
-                }
-            }
-
-            // 导出功能
-            async function exportPDF() {
-                window.open('/api/export/pdf', '_blank');
-            }
-
-            async function exportExcel() {
-                window.open('/api/export/excel', '_blank');
-            }
-
-            // 刷新数据
-            function refreshData() {
-                loadData();
-            }
-
-            // 显示/隐藏加载提示
-            function showLoading(show) {
-                document.getElementById('loading').style.display = show ? 'flex' : 'none';
-            }
-
-            // 页面加载完成时初始化
-            document.addEventListener('DOMContentLoaded', function () {
-                loadData();  // 你原来的加载数据函数
-                loadStrategies();  // 新增：加载策略按钮
+            data.strategies.forEach(s => {
+                const btn = document.createElement('button');
+                btn.className = 'strategy-btn';
+                btn.textContent = s;
+                btn.dataset.strategy = s;
+                btn.onclick = () => filterByStrategy(s);
+                container.appendChild(btn);
             });
+        } catch (e) {}
+    }
 
-            // 键盘快捷键
-            document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.key === 'p') {
-                    e.preventDefault();
-                    exportPDF();
-                }
-                if (e.ctrlKey && e.key === 's') {
-                    e.preventDefault();
-                    exportExcel();
-                }
-                if (e.ctrlKey && e.key === 'f') {
-                    e.preventDefault();
-                    document.getElementById('searchInput').focus();
-                }
-            });
-        </script>
+    function filterByStrategy(strategy) {
+        currentStrategy = strategy;
+        document.querySelectorAll('.strategy-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.strategy === strategy);
+        });
+        filterAndRender();
+    }
+
+    function filterByScale() {
+        currentScale = document.getElementById('scaleSelect').value;
+        filterAndRender();
+    }
+
+    function filterTable() {
+        currentSearch = document.getElementById('searchInput').value.toLowerCase();
+        filterAndRender();
+    }
+
+    function filterAndRender() {
+        fundsData = allFundsData.filter(fund => {
+            if (currentStrategy !== 'all' && fund.strategy !== currentStrategy) return false;
+            if (currentScale === 'large' && fund.scale_level === '小厂') return false;
+            if (currentScale === 'small' && fund.scale_level === '大厂') return false;
+            if (currentSearch) {
+                const m = (fund.manager || '').toLowerCase();
+                const p = (fund.product_name || '').toLowerCase();
+                if (!m.includes(currentSearch) && !p.includes(currentSearch)) return false;
+            }
+            return true;
+        });
+        sortTable();
+        updateStats();
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        const fmt = v => {
+            if (v === undefined || v === 'nan' || v === '-') return '-';
+            const n = parseFloat(v);
+            return isNaN(n) ? v : n.toFixed(2);
+        };
+        const cls = (v, inv = false) => {
+            const n = parseFloat(v);
+            if (isNaN(n)) return '';
+            if (n > 0) return inv ? 'negative' : 'positive';
+            if (n < 0) return inv ? 'positive' : 'negative';
+            return '';
+        };
+        data.forEach(fund => {
+            const tr = document.createElement('tr');
+            if (fund.manager === '基准') tr.classList.add('benchmark-row');
+            tr.innerHTML = `
+                <td>${fund.manager || '-'}</td>
+                <td class="scale">${fund.scale || '-'}</td>
+                <td class="product-name">${fund.product_name || '-'}</td>
+                <td>${fund.start_date || '-'}</td>
+                <td class="${cls(fund.recent_week)} highlight">${fmt(fund.recent_week)}</td>
+                <td class="${cls(fund.ytd)} highlight">${fmt(fund.ytd)}</td>
+                <td class="${cls(fund.recent_year)}">${fmt(fund.recent_year)}</td>
+                <td class="${cls(fund.recent_year_sharpe)}">${fmt(fund.recent_year_sharpe)}</td>
+                <td class="mdd">${fmt(fund.recent_year_mdd)}</td>
+                <td class="${cls(fund.y2025)}">${fmt(fund.y2025)}</td>
+                <td class="${cls(fund.y2024)}">${fmt(fund.y2024)}</td>
+                <td class="${cls(fund.y2023)}">${fmt(fund.y2023)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function sortTable() {
+        const by = document.getElementById('sortSelect').value;
+        const sorted = [...fundsData].sort((a, b) => {
+            switch (by) {
+                case 'name':    return (a.product_name || '').localeCompare(b.product_name || '');
+                case 'manager': return (a.manager || '').localeCompare(b.manager || '');
+                case 'recent_week':     return (parseFloat(b.recent_week) || 0) - (parseFloat(a.recent_week) || 0);
+                case 'recent_week_asc': return (parseFloat(a.recent_week) || 0) - (parseFloat(b.recent_week) || 0);
+                case 'ytd':     return (parseFloat(b.ytd) || 0) - (parseFloat(a.ytd) || 0);
+                case 'ytd_asc': return (parseFloat(a.ytd) || 0) - (parseFloat(b.ytd) || 0);
+                default: return 0;
+            }
+        });
+        renderTable(sorted);
+    }
+
+    function updateStats() {
+        const d = fundsData.filter(f => f.scale_level !== 'benchmark');
+        document.getElementById('totalFunds').textContent = d.length;
+        const avg = (key) => {
+            const vals = d.map(f => parseFloat(f[key])).filter(v => !isNaN(v));
+            if (!vals.length) return '—';
+            return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) + '%';
+        };
+        document.getElementById('avg_recent_week').textContent = avg('recent_week');
+        document.getElementById('avgYtd').textContent = avg('ytd');
+        document.getElementById('avg_recent_year').textContent = avg('recent_year');
+    }
+
+    function exportPDF()   { window.open('/api/export/pdf', '_blank'); }
+    function exportExcel() { window.open('/api/export/excel', '_blank'); }
+    function refreshData() { fetch('/api/refresh', {method:'POST'}).then(() => loadData()); }
+    function showLoading(s) { document.getElementById('loading').style.display = s ? 'flex' : 'none'; }
+
+    document.addEventListener('DOMContentLoaded', () => { loadData(); loadStrategies(); });
+
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key === 'p') { e.preventDefault(); exportPDF(); }
+        if (e.ctrlKey && e.key === 's') { e.preventDefault(); exportExcel(); }
+        if (e.ctrlKey && e.key === 'f') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+    });
+</script>
 </body>
-
 </html>

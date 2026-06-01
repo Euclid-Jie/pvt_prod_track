@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:\\\\Program Files\\\\Python\\\\Python312\\\\python.exe\" --version)",
+      "Bash(\"C:\\\\Program Files\\\\Python\\\\Python312\\\\python.exe\" -m venv .venv)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/python.exe -m pip install --upgrade pip setuptools wheel)",
+      "Bash(.venv/Scripts/python.exe -c \"import flask, pandas, reportlab, sqlalchemy; print\\('OK'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"import app; print\\('OK'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"import app; print\\('OK'\\); print\\(app.INTERVALS['intervals']\\)\")",
+      "Bash(.venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}
