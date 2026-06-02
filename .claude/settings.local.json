@@ -8,7 +8,28 @@
       "Bash(.venv/Scripts/python.exe -c \"import flask, pandas, reportlab, sqlalchemy; print\\('OK'\\)\")",
       "Bash(.venv/Scripts/python.exe -c \"import app; print\\('OK'\\)\")",
       "Bash(.venv/Scripts/python.exe -c \"import app; print\\('OK'\\); print\\(app.INTERVALS['intervals']\\)\")",
-      "Bash(.venv/Scripts/python.exe -c ' *)"
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(C:\\\\Program Files\\\\Go\\\\bin\\\\go.exe version *)",
+      "Bash(mkdir -p \"W:/WorkSpace/pvt_prod_track_go/templates\")",
+      "Read(//w/WorkSpace/**)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" mod init pvt_prod_track)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" get github.com/go-sql-driver/mysql github.com/xuri/excelize/v2)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" build ./...)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" get github.com/jchv/go-webview2)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" build -ldflags=\"-H windowsgui\" -o pvt_prod_track.exe .)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" build -ldflags=\"-H windowsgui\" -o \"../pvt_prod_track.exe\" .)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" build -o \"../pvt_prod_track_debug.exe\" .)",
+      "Bash(cp -r \"W:/WorkSpace/pvt_prod_track/templates\" \"W:/WorkSpace/pvt_prod_track/go/assets/\")",
+      "Bash(cp -r \"W:/WorkSpace/pvt_prod_track/static\" \"W:/WorkSpace/pvt_prod_track/go/assets/\")",
+      "Bash(C:/Program Files/Go/bin/go.exe install *)",
+      "Bash(\"C:/Users/Ouwei/go/bin/goversioninfo.exe\" -icon=icon.ico -o resource.syso)",
+      "Bash(\"C:/Users/Ouwei/go/bin/goversioninfo.exe\" -icon=\"../go/icon.ico\" -o resource.syso)",
+      "Bash(\"C:/Users/Ouwei/go/bin/goversioninfo.exe\" -icon=\"W:/WorkSpace/pvt_prod_track/go/icon.ico\" -o resource.syso)",
+      "Bash(cp \"W:/WorkSpace/pvt_prod_track/icon.ico\" \"W:/WorkSpace/pvt_prod_track/go/icon.ico\")",
+      "Bash(\"C:/Users/Ouwei/go/bin/goversioninfo.exe\" -icon=\"icon.ico\" -o resource.syso)",
+      "Bash(cp \"W:/WorkSpace/pvt_prod_track/templates/index.html\" \"W:/WorkSpace/pvt_prod_track/go/assets/templates/index.html\")",
+      "Bash(cp \"W:/WorkSpace/pvt_prod_track/static/style.css\" \"W:/WorkSpace/pvt_prod_track/go/assets/static/style.css\")",
+      "Bash(gh pr *)"
     ]
   }
 }
