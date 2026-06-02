@@ -29,7 +29,9 @@
       "Bash(\"C:/Users/Ouwei/go/bin/goversioninfo.exe\" -icon=\"icon.ico\" -o resource.syso)",
       "Bash(cp \"W:/WorkSpace/pvt_prod_track/templates/index.html\" \"W:/WorkSpace/pvt_prod_track/go/assets/templates/index.html\")",
       "Bash(cp \"W:/WorkSpace/pvt_prod_track/static/style.css\" \"W:/WorkSpace/pvt_prod_track/go/assets/static/style.css\")",
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "Bash(cp W:/WorkSpace/pvt_prod_track/templates/index.html W:/WorkSpace/pvt_prod_track/go/assets/templates/index.html)",
+      "Bash(\"C:/Program Files/Go/bin/go.exe\" build -ldflags=\"-H windowsgui\" -o ../pvt_prod_track.exe .)"
     ]
   }
 }

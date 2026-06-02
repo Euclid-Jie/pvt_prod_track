@@ -29,7 +29,7 @@ cp static/style.css go/assets/static/style.css
 
 **Go source** (`go/`):
 - `main.go` — HTTP server, WebView2 window, all route handlers, config management
-- `data.go` — 3 concurrent SQL queries, data pivot, in-memory cache (`dataCache`)
+- `data.go` — server-side pivot SQL, in-memory cache (`dataCache`), DB connection pools
 - `intervals.go` — trading calendar, interval computation (`buildIntervals`)
 - `export.go` — Excel export via `excelize/v2`
 - `embed.go` — `//go:embed assets` declaration
@@ -63,17 +63,32 @@ First run without `config.json` → settings modal auto-opens.
 
 **Startup:** `reloadIntervals(lastDay)` → reads `intervals.json` (local override or embedded) + holiday file → computes 4 dynamic intervals + yearly intervals → stored in global `intervals []Interval`.
 
-**First API call:** `loadData()` fires 3 concurrent SQL queries:
-- `Nav.nav_interval_metrics` — `(fund_code, interval_begin, interval_end, metric_name, metric_value)` filtered by `DATE(interval_end) IN (...)`
-- `Euclid.fund_basic_info` — `(prod_code, prod_name, prod_comp, prod_type, 管理人规模, 净值来源, fid)`
-- `Nav.nav_data` — `MIN(date)` per `register_number`
+**First API call:** `loadData()` fires 2 concurrent queries, results cached in `dataCache` until `clearCache()`:
 
-Results pivoted: `fund_code × (interval_name_metric)` → flat `Fund` struct. Cached in `dataCache` until `clearCache()`.
+1. **`Nav.nav_interval_metrics`** — server-side pivot: `GROUP BY fund_code` + `MAX(CASE WHEN interval_begin=? AND interval_end=? AND metric_name=? THEN metric_value END)` per interval×metric. Returns ~700 rows (one per fund) instead of ~12000 raw metric rows. `HAVING recent_week_return IS NOT NULL` filters out funds with no recent-week data. **This pivot is the critical performance design — do not replace with a flat SELECT.**
+
+2. **`Euclid.fund_basic_info`** — `(prod_code, prod_name, prod_comp, prod_type, 管理人规模)` where `净值来源 IS NOT NULL`.
+
+**Adding a new metric or interval:** In `data.go:loadData`, add an entry to the `cols` slice (name, begin, end, metric). The pivot SQL builds dynamically from `cols` — no manual SQL editing. Add the field to `Fund` struct and populate it in the `funds = append(...)` block.
+
+**Connection pools:** `dbNav`/`dbEuclid` are global `*sql.DB` initialized in `initDBPools()` (called on startup and config save). DSN uses `compress=true`.
 
 **Key mappings:**
-- `register_number` for personal nav: `p_{fid}`, else `prod_code`
 - `scale_level`: `"大厂"` if scale in `["50-100亿元", "100亿元以上"]`
-- `strategyType` map: sub-strategy → top-level (in `data.go` — keep in sync with Python version)
+- `strategyType` map: sub-strategy → top-level (in `data.go`)
+
+## Performance Debugging
+
+Build debug exe (shows console):
+```bash
+cd go
+go build -o ../pvt_prod_track_debug.exe .
+```
+
+To measure query timing, add `log.Printf` calls in `data.go:loadData` around the `navDB.Query` and `rows.Scan` loop. Key timings to watch:
+- **pivot query** (`.Query()` call): should be ~300ms — network RTT + MySQL GROUP BY
+- **pivot scan** (`.Scan()` loop): should be ~200ms — transferring ~700 rows
+- If scan is slow (>1s), check row count — a flat SELECT accidentally replacing the pivot will return 12000+ rows and take 5s+
 
 ## API Endpoints
 

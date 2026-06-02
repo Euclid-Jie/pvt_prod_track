@@ -72,6 +72,8 @@ func main() {
 		}
 		hasConfig = true
 		reloadIntervals()
+		initDBPools(&cfg)
+		go loadData(&cfg, intervals)
 	}
 
 	staticFS, _ := fs.Sub(embeddedAssets, "assets/static")
@@ -270,6 +272,10 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	cfg = newCfg
 	hasConfig = true
 	clearCache()
+	if err := initDBPools(&cfg); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	if err := reloadIntervals(); err != nil {
 		http.Error(w, err.Error(), 500)
 		return

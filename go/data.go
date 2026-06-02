@@ -6,7 +6,6 @@ import (
 	"math"
 	"strings"
 	"sync"
-	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -30,7 +29,6 @@ type Fund struct {
 	ProductName      string `json:"product_name"`
 	Scale            string `json:"scale"`
 	ScaleLevel       string `json:"scale_level"`
-	StartDate        string `json:"start_date"`
 	RecentWeek       string `json:"recent_week"`
 	Ytd              string `json:"ytd"`
 	RecentYear       string `json:"recent_year"`
@@ -48,6 +46,34 @@ type cache struct {
 
 var dataCache cache
 
+var (
+	dbNav    *sql.DB
+	dbEuclid *sql.DB
+	dbMu     sync.Mutex
+)
+
+func initDBPools(cfg *Config) error {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	dsn := func(db string) string {
+		return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&compress=true",
+			cfg.DBUser, cfg.DBPass, cfg.DBHost, cfg.DBPort, db)
+	}
+	var err error
+	if dbNav != nil {
+		dbNav.Close()
+	}
+	if dbEuclid != nil {
+		dbEuclid.Close()
+	}
+	dbNav, err = sql.Open("mysql", dsn("Nav"))
+	if err != nil {
+		return err
+	}
+	dbEuclid, err = sql.Open("mysql", dsn("Euclid"))
+	return err
+}
+
 func fmtVal(v *float64, pct bool) string {
 	if v == nil || math.IsNaN(*v) {
 		return "-"
@@ -58,6 +84,12 @@ func fmtVal(v *float64, pct bool) string {
 	return fmt.Sprintf("%.4f", *v)
 }
 
+func pivotCol(begin, end, metric string) string {
+	return fmt.Sprintf(
+		"MAX(CASE WHEN interval_begin='%s' AND interval_end='%s' AND metric_name='%s' THEN metric_value END)",
+		begin, end, metric)
+}
+
 func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 	dataCache.mu.Lock()
 	defer dataCache.mu.Unlock()
@@ -65,80 +97,94 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		return dataCache.funds, nil
 	}
 
-	dsn := func(db string) string {
-		return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true",
-			cfg.DBUser, cfg.DBPass, cfg.DBHost, cfg.DBPort, db)
+	dbMu.Lock()
+	navDB := dbNav
+	euclidDB := dbEuclid
+	dbMu.Unlock()
+	if navDB == nil || euclidDB == nil {
+		return nil, fmt.Errorf("database not initialized")
 	}
-	navDB, err := sql.Open("mysql", dsn("Nav"))
-	if err != nil {
-		return nil, err
-	}
-	defer navDB.Close()
-	euclidDB, err := sql.Open("mysql", dsn("Euclid"))
-	if err != nil {
-		return nil, err
-	}
-	defer euclidDB.Close()
 
-	// build interval map (begin,end) -> name
-	intervalMap := make(map[[2]string]string)
+	// Build pivot columns: return for every interval, sharpe+MDD only for recent_year.
+	// To add a metric: append to colNames/selectCols and add a get() call in the Fund{} block below.
+	type colDef struct{ name, colExpr string }
+	var colDefs []colDef
 	endSet := make(map[string]bool)
 	for _, iv := range intervals {
-		intervalMap[[2]string{iv.Begin, iv.End}] = iv.Name
 		endSet[iv.End] = true
+		colDefs = append(colDefs, colDef{iv.Name + "_return",
+			pivotCol(iv.Begin, iv.End, "return") + " AS `" + iv.Name + "_return`"})
+		if iv.Name == "recent_year" {
+			colDefs = append(colDefs, colDef{"recent_year_sharpe",
+				pivotCol(iv.Begin, iv.End, "sharpe") + " AS `recent_year_sharpe`"})
+			colDefs = append(colDefs, colDef{"recent_year_MDD",
+				pivotCol(iv.Begin, iv.End, "MDD") + " AS `recent_year_MDD`"})
+		}
+	}
+
+	selectExprs := make([]string, len(colDefs))
+	colIdx := make(map[string]int, len(colDefs))
+	for i, c := range colDefs {
+		selectExprs[i] = c.colExpr
+		colIdx[c.name] = i
 	}
 	ends := make([]string, 0, len(endSet))
 	for e := range endSet {
 		ends = append(ends, "'"+e+"'")
 	}
-	endsSQL := "(" + joinStrings(ends, ",") + ")"
+	// HAVING filters to funds that have recent_week data (the first col is always recent_week_return).
+	weekCol := colDefs[0].name
+	pivotSQL := "SELECT fund_code, " + strings.Join(selectExprs, ", ") +
+		" FROM nav_interval_metrics" +
+		" WHERE is_excess=0 AND interval_end IN (" + strings.Join(ends, ",") + ")" +
+		" GROUP BY fund_code" +
+		" HAVING `" + weekCol + "` IS NOT NULL"
 
-	type metricRow struct {
-		FundCode      string
-		IntervalBegin string
-		IntervalEnd   string
-		MetricName    string
-		MetricValue   float64
+	type pivotRow struct {
+		fundCode string
+		vals     []*float64
 	}
 	type infoRow struct {
-		ProdCode  string
-		ProdName  string
-		ProdComp  string
-		ProdType  string
-		Scale     string
-		NavSource string
-		Fid       sql.NullInt64
+		ProdCode string
+		ProdName string
+		ProdComp string
+		ProdType string
+		Scale    string
 	}
 
 	var wg sync.WaitGroup
-	var metrics []metricRow
+	var pivotRows []pivotRow
 	var infos []infoRow
-	startDates := make(map[string]string)
-	var errMetrics, errInfo, errStart error
+	var errMetrics, errInfo error
 
-	wg.Add(3)
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		rows, err := navDB.Query(
-			"SELECT fund_code, DATE_FORMAT(interval_begin,'%Y-%m-%d'), DATE_FORMAT(interval_end,'%Y-%m-%d'), metric_name, metric_value " +
-				"FROM nav_interval_metrics WHERE is_excess=0 AND metric_name IN ('return','sharpe','MDD') " +
-				"AND DATE(interval_end) IN " + endsSQL)
+		rows, err := navDB.Query(pivotSQL)
 		if err != nil {
 			errMetrics = err
 			return
 		}
 		defer rows.Close()
+		nCols := len(colDefs)
+		// dest is reused across rows; vals is allocated per row to avoid aliasing.
+		dest := make([]any, 1+nCols)
 		for rows.Next() {
-			var r metricRow
-			if e := rows.Scan(&r.FundCode, &r.IntervalBegin, &r.IntervalEnd, &r.MetricName, &r.MetricValue); e == nil {
-				metrics = append(metrics, r)
+			var code string
+			vals := make([]*float64, nCols)
+			dest[0] = &code
+			for i := range vals {
+				dest[i+1] = &vals[i]
+			}
+			if e := rows.Scan(dest...); e == nil {
+				pivotRows = append(pivotRows, pivotRow{code, vals})
 			}
 		}
 	}()
 	go func() {
 		defer wg.Done()
 		rows, err := euclidDB.Query(
-			"SELECT prod_code, prod_name, prod_comp, prod_type, 管理人规模, 净值来源, fid FROM fund_basic_info WHERE 净值来源 IS NOT NULL")
+			"SELECT prod_code, prod_name, prod_comp, prod_type, 管理人规模 FROM fund_basic_info WHERE 净值来源 IS NOT NULL")
 		if err != nil {
 			errInfo = err
 			return
@@ -146,24 +192,8 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		defer rows.Close()
 		for rows.Next() {
 			var r infoRow
-			if e := rows.Scan(&r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale, &r.NavSource, &r.Fid); e == nil {
+			if e := rows.Scan(&r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale); e == nil {
 				infos = append(infos, r)
-			}
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		rows, err := navDB.Query("SELECT register_number, MIN(date) FROM nav_data GROUP BY register_number")
-		if err != nil {
-			errStart = err
-			return
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var reg string
-			var d time.Time
-			if e := rows.Scan(&reg, &d); e == nil {
-				startDates[reg] = d.Format("2006-01-02")
 			}
 		}
 	}()
@@ -174,41 +204,30 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 	if errInfo != nil {
 		return nil, errInfo
 	}
-	if errStart != nil {
-		return nil, errStart
+
+	pivotMap := make(map[string][]*float64, len(pivotRows))
+	for _, pr := range pivotRows {
+		pivotMap[pr.fundCode] = pr.vals
 	}
 
-	// pivot metrics: fund_code -> interval_metric -> value
-	type pivotKey struct{ fund, iv, metric string }
-	pivotMap := make(map[pivotKey]float64)
-	for _, m := range metrics {
-		ivName, ok := intervalMap[[2]string{m.IntervalBegin, m.IntervalEnd}]
-		if !ok {
-			continue
-		}
-		pivotMap[pivotKey{m.FundCode, ivName, m.MetricName}] = m.MetricValue
-	}
-
-	get := func(fund, iv, metric string) *float64 {
-		v, ok := pivotMap[pivotKey{fund, iv, metric}]
+	get := func(code, colName string) *float64 {
+		vals, ok := pivotMap[code]
 		if !ok {
 			return nil
 		}
-		return &v
+		i, ok := colIdx[colName]
+		if !ok {
+			return nil
+		}
+		return vals[i]
 	}
 
 	var funds []Fund
 	for _, info := range infos {
 		code := info.ProdCode
-		startKey := code
-		if info.NavSource == "个人净值" && info.Fid.Valid {
-			startKey = fmt.Sprintf("p_%d", info.Fid.Int64)
+		if info.ProdComp != "基准" && pivotMap[code] == nil {
+			continue
 		}
-		startDate := startDates[startKey]
-		if startDate == "" {
-			startDate = "-"
-		}
-
 		scale := info.Scale
 		if scale == "" {
 			scale = "-"
@@ -217,7 +236,6 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		if scale == "50-100亿元" || scale == "100亿元以上" {
 			scaleLevel = "大厂"
 		}
-
 		strategy := info.ProdType
 		if mapped, ok := strategyType[strategy]; ok {
 			strategy = mapped
@@ -225,22 +243,20 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		if strategy == "" {
 			strategy = "-"
 		}
-
 		funds = append(funds, Fund{
 			Strategy:         strategy,
 			Manager:          orDash(info.ProdComp),
 			ProductName:      orDash(info.ProdName),
 			Scale:            scale,
 			ScaleLevel:       scaleLevel,
-			StartDate:        startDate,
-			RecentWeek:       fmtVal(get(code, "recent_week", "return"), true),
-			Ytd:              fmtVal(get(code, "ytd", "return"), true),
-			RecentYear:       fmtVal(get(code, "recent_year", "return"), true),
-			RecentYearSharpe: fmtVal(get(code, "recent_year", "sharpe"), false),
-			RecentYearMdd:    fmtVal(get(code, "recent_year", "MDD"), true),
-			Y2025:            fmtVal(get(code, "y2025", "return"), true),
-			Y2024:            fmtVal(get(code, "y2024", "return"), true),
-			Y2023:            fmtVal(get(code, "y2023", "return"), true),
+			RecentWeek:       fmtVal(get(code, "recent_week_return"), true),
+			Ytd:              fmtVal(get(code, "ytd_return"), true),
+			RecentYear:       fmtVal(get(code, "recent_year_return"), true),
+			RecentYearSharpe: fmtVal(get(code, "recent_year_sharpe"), false),
+			RecentYearMdd:    fmtVal(get(code, "recent_year_MDD"), true),
+			Y2025:            fmtVal(get(code, "y2025_return"), true),
+			Y2024:            fmtVal(get(code, "y2024_return"), true),
+			Y2023:            fmtVal(get(code, "y2023_return"), true),
 		})
 	}
 
@@ -259,8 +275,4 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
-}
-
-func joinStrings(ss []string, sep string) string {
-	return strings.Join(ss, sep)
 }

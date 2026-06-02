@@ -234,8 +234,8 @@ body {
 table {
     border-collapse: collapse;
     table-layout: fixed;
-    width: 1060px;
-    min-width: 1060px;
+    width: 978px;
+    min-width: 978px;
     background: var(--surface);
 }
 
@@ -261,15 +261,14 @@ th:nth-child(1), td:nth-child(1) { width: 68px; }   /* 管理人 */
 th:nth-child(2), td:nth-child(2) { width: 110px; }  /* 规模 */
 th:nth-child(3), td:nth-child(3) { width: 190px; }  /* 产品名称 */
 th:nth-child(4), td:nth-child(4) { width: 82px; }   /* 策略类型 */
-th:nth-child(5), td:nth-child(5) { width: 82px; }   /* 净值起始日 */
-th:nth-child(6), td:nth-child(6) { width: 68px; }   /* 近一周 */
-th:nth-child(7), td:nth-child(7) { width: 68px; }   /* 今年以来 */
-th:nth-child(8), td:nth-child(8) { width: 68px; }   /* 近一年 */
-th:nth-child(9), td:nth-child(9) { width: 68px; }   /* 近一年夏普 */
-th:nth-child(10), td:nth-child(10) { width: 68px; }   /* 近一年MDD */
-th:nth-child(11), td:nth-child(11) { width: 62px; } /* 2025 */
-th:nth-child(12), td:nth-child(12) { width: 62px; } /* 2024 */
-th:nth-child(13), td:nth-child(13) { width: 62px; } /* 2023 */
+th:nth-child(5), td:nth-child(5) { width: 68px; }   /* 近一周 */
+th:nth-child(6), td:nth-child(6) { width: 68px; }   /* 今年以来 */
+th:nth-child(7), td:nth-child(7) { width: 68px; }   /* 近一年 */
+th:nth-child(8), td:nth-child(8) { width: 68px; }   /* 近一年夏普 */
+th:nth-child(9), td:nth-child(9) { width: 68px; }   /* 近一年MDD */
+th:nth-child(10), td:nth-child(10) { width: 62px; } /* 2025 */
+th:nth-child(11), td:nth-child(11) { width: 62px; } /* 2024 */
+th:nth-child(12), td:nth-child(12) { width: 62px; } /* 2023 */
 
 td {
     padding: 10px 8px;

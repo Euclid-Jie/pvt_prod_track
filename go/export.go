@@ -13,7 +13,7 @@ func exportExcel(funds []Fund, w io.Writer) error {
 	sheet := "私募产品周报"
 	f.SetSheetName("Sheet1", sheet)
 
-	headers := []string{"策略类型", "管理人", "产品名称", "规模", "净值起始日",
+	headers := []string{"策略类型", "管理人", "产品名称", "规模",
 		"近一周(%)", "今年以来(%)", "近一年(%)", "近一年夏普", "近一年最大回撤(%)",
 		"2025(%)", "2024(%)", "2023(%)"}
 	for i, h := range headers {
@@ -22,7 +22,7 @@ func exportExcel(funds []Fund, w io.Writer) error {
 	}
 
 	for row, fund := range funds {
-		vals := []string{fund.Strategy, fund.Manager, fund.ProductName, fund.Scale, fund.StartDate,
+		vals := []string{fund.Strategy, fund.Manager, fund.ProductName, fund.Scale,
 			fund.RecentWeek, fund.Ytd, fund.RecentYear, fund.RecentYearSharpe, fund.RecentYearMdd,
 			fund.Y2025, fund.Y2024, fund.Y2023}
 		for col, v := range vals {

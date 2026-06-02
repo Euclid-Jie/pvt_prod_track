@@ -19,7 +19,7 @@
 cd go
 go build -ldflags="-H windowsgui" -o ../pvt_prod_track.exe .
 
-# 调试版（有控制台，看报错）
+# 调试版（有控制台，可看 log 输出）
 cd go
 go build -o ../pvt_prod_track_debug.exe .
 ```
@@ -30,6 +30,8 @@ cp templates/index.html go/assets/templates/index.html
 cp static/style.css go/assets/static/style.css
 cd go && go build -ldflags="-H windowsgui" -o ../pvt_prod_track.exe .
 ```
+
+**调试查询性能：** 在 `go/data.go` 的 `loadData` 里在 `navDB.Query` 和 `rows.Scan` 循环前后加 `log.Printf` 计时，编译调试版运行即可在控制台看到耗时。正常耗时：pivot query ~300ms，scan ~200ms，合计 ~500ms。
 
 **重新生成 ico 资源（换图标时）：**
 ```bash

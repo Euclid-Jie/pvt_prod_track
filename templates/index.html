@@ -84,7 +84,6 @@
                             <th>规模</th>
                             <th>产品名称</th>
                             <th>策略类型</th>
-                            <th>净值起始日</th>
                             <th>近一周(%)</th>
                             <th>今年以来(%)</th>
                             <th>近一年(%)</th>
@@ -246,7 +245,6 @@
                 <td class="scale">${fund.scale || '-'}</td>
                 <td class="product-name">${fund.product_name || '-'}</td>
                 <td>${fund.strategy || '-'}</td>
-                <td>${fund.start_date || '-'}</td>
                 <td class="${cls(fund.recent_week)} highlight">${fmt(fund.recent_week)}</td>
                 <td class="${cls(fund.ytd)} highlight">${fmt(fund.ytd)}</td>
                 <td class="${cls(fund.recent_year)}">${fmt(fund.recent_year)}</td>
