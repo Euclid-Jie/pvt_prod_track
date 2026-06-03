@@ -145,11 +145,13 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		vals     []*float64
 	}
 	type infoRow struct {
-		ProdCode string
-		ProdName string
-		ProdComp string
-		ProdType string
-		Scale    string
+		ProdCode  string
+		ProdName  string
+		ProdComp  string
+		ProdType  string
+		Scale     string
+		NavSource string
+		Fid       sql.NullInt64
 	}
 
 	var wg sync.WaitGroup
@@ -184,7 +186,7 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 	go func() {
 		defer wg.Done()
 		rows, err := euclidDB.Query(
-			"SELECT prod_code, prod_name, prod_comp, prod_type, 管理人规模 FROM fund_basic_info WHERE 净值来源 IS NOT NULL")
+			"SELECT prod_code, prod_name, prod_comp, prod_type, 管理人规模, 净值来源, fid FROM fund_basic_info WHERE 净值来源 IS NOT NULL")
 		if err != nil {
 			errInfo = err
 			return
@@ -192,7 +194,7 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		defer rows.Close()
 		for rows.Next() {
 			var r infoRow
-			if e := rows.Scan(&r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale); e == nil {
+			if e := rows.Scan(&r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale, &r.NavSource, &r.Fid); e == nil {
 				infos = append(infos, r)
 			}
 		}
@@ -225,6 +227,9 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 	var funds []Fund
 	for _, info := range infos {
 		code := info.ProdCode
+		if info.NavSource == "个人净值" && info.Fid.Valid {
+			code = fmt.Sprintf("p_%d", info.Fid.Int64)
+		}
 		if info.ProdComp != "基准" && pivotMap[code] == nil {
 			continue
 		}

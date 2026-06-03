@@ -128,7 +128,11 @@ def load_data():
     pivot.columns = [f"{i}_{m}" for i, m in pivot.columns]
     pivot = pivot.reset_index()
 
-    merged = info.merge(pivot, left_on="prod_code", right_on="fund_code", how="inner")
+    info["key"] = info.apply(
+        lambda x: f"p_{int(x['fid'])}" if x["净值来源"] == "个人净值" else x["prod_code"],
+        axis=1,
+    )
+    merged = info.merge(pivot, left_on="key", right_on="fund_code", how="inner")
 
     def get_start(r):
         key = f"p_{int(r['fid'])}" if r["净值来源"] == "个人净值" else r["prod_code"]
