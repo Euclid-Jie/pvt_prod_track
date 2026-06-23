@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -100,8 +101,13 @@ func main() {
 		w.Write(data)
 	})
 
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	serverURL := "http://" + listener.Addr().String()
 	go func() {
-		if err := http.ListenAndServe(":5000", nil); err != nil {
+		if err := http.Serve(listener, nil); err != nil {
 			log.Fatal(err)
 		}
 	}()
@@ -114,7 +120,7 @@ func main() {
 	w.SetTitle("私募产品周报")
 	w.SetSize(1400, 860, webview.HintNone)
 	setWindowIcon(w.Window())
-	w.Navigate("http://localhost:5000")
+	w.Navigate(serverURL)
 	w.Run()
 }
 

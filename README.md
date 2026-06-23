@@ -31,6 +31,13 @@ cp static/style.css go/assets/static/style.css
 cd go && go build -ldflags="-H windowsgui" -o ../pvt_prod_track.exe .
 ```
 
+## Runtime HTTP server
+
+The desktop app starts an embedded HTTP server for the WebView2 UI and `/api/*`
+routes. It binds to `127.0.0.1:0`, so Windows assigns a free local-only port at
+startup. Do not change it back to a fixed `:5000` listener; that can conflict
+with local development tools and may expose the app on non-loopback interfaces.
+
 **调试查询性能：** 在 `go/data.go` 的 `loadData` 里在 `navDB.Query` 和 `rows.Scan` 循环前后加 `log.Printf` 计时，编译调试版运行即可在控制台看到耗时。正常耗时：pivot query ~300ms，scan ~200ms，合计 ~500ms。
 
 **重新生成 ico 资源（换图标时）：**
