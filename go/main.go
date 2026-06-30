@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"io"
 	"io/fs"
 	"log"
@@ -34,98 +35,150 @@ var (
 	weekIV    Interval
 	ytdIV     Interval
 	hasConfig bool
-	dataDir   string // directory where config.json is stored
+	dataDir   string
 )
 
-// configDir returns a writable directory for config files.
-// Prefers exe directory; falls back to %APPDATA%\pvt_prod_track.
-func initDataDir() string {
-	exePath, _ := os.Executable()
+func resolveDataDir(exePath string) string {
 	exeDir := filepath.Dir(exePath)
-	testFile := filepath.Join(exeDir, ".write_test")
-	if f, err := os.Create(testFile); err == nil {
-		f.Close()
-		os.Remove(testFile)
-		return exeDir
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
+	candidates := []string{cwd, filepath.Dir(cwd), exeDir}
+	for _, dir := range candidates {
+		if dir == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "config.json")); err == nil {
+			return dir
+		}
+	}
+	for _, dir := range candidates {
+		if dir == "" {
+			continue
+		}
+		testFile := filepath.Join(dir, ".write_test")
+		if f, err := os.Create(testFile); err == nil {
+			f.Close()
+			_ = os.Remove(testFile)
+			return dir
+		}
 	}
 	appData, err := os.UserConfigDir()
 	if err != nil {
 		appData = os.TempDir()
 	}
 	dir := filepath.Join(appData, "pvt_prod_track")
-	os.MkdirAll(dir, 0755)
+	_ = os.MkdirAll(dir, 0755)
 	return dir
 }
 
 func main() {
-	exePath, err := os.Executable()
-	if err == nil {
-		os.Chdir(filepath.Dir(exePath))
-	}
-	dataDir = initDataDir()
+	listenAddr := flag.String("listen", "0.0.0.0:5003", "listen address for service mode")
+	flag.Parse()
 
-	// Try loading config — if missing, open settings page first
+	exePath, _ := os.Executable()
+	if exePath != "" {
+		_ = os.Chdir(filepath.Dir(exePath))
+	}
+	dataDir = resolveDataDir(exePath)
+
 	cfgData, err := os.ReadFile(filepath.Join(dataDir, "config.json"))
 	if err == nil {
-		json.Unmarshal(cfgData, &cfg)
+		_ = json.Unmarshal(cfgData, &cfg)
 		if cfg.DBPort == "" {
 			cfg.DBPort = "3306"
 		}
 		hasConfig = true
-		reloadIntervals()
-		initDBPools(&cfg)
+		_ = reloadIntervals()
+		_ = initDBPools(&cfg)
 		go loadData(&cfg, intervals)
 	}
 
-	staticFS, _ := fs.Sub(embeddedAssets, "assets/static")
-	templatesFS, _ := fs.Sub(embeddedAssets, "assets/templates")
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
-	http.Handle("/", http.FileServer(http.FS(templatesFS)))
-	http.HandleFunc("/api/data", handleData)
-	http.HandleFunc("/api/strategies", handleStrategies)
-	http.HandleFunc("/api/refresh", handleRefresh)
-	http.HandleFunc("/api/export/excel", handleExcel)
-	http.HandleFunc("/api/intervals", handleIntervals)
-	http.HandleFunc("/api/config", handleConfig)
-	http.HandleFunc("/api/config/holiday", handleHolidayUpload)
-	http.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{"configured": hasConfig})
-	})
-	http.HandleFunc("/icon.ico", func(w http.ResponseWriter, r *http.Request) {
-		data, err := embeddedAssets.ReadFile("assets/icon.ico")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "image/x-icon")
-		w.Write(data)
-	})
+	if isWebServiceExe(exePath) {
+		startServiceServer(*listenAddr)
+		return
+	}
+	startDesktopApp()
+}
 
+func isWebServiceExe(exePath string) bool {
+	base := filepath.Base(exePath)
+	return base == "pvt_prod_track_web.exe" || base == "pvt_prod_track_web"
+}
+
+func startDesktopApp() {
+	mux := newAppMux("assets/templates/index.html")
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		log.Fatal(err)
 	}
 	serverURL := "http://" + listener.Addr().String()
 	go func() {
-		if err := http.Serve(listener, nil); err != nil {
+		if err := http.Serve(listener, mux); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
 	}()
 
 	w := webview.New(false)
 	if w == nil {
-		log.Fatal("WebView2 初始化失败，请确认系统已安装 WebView2 Runtime")
+		log.Fatal("WebView2 鍒濆鍖栧け璐ワ紝璇风‘璁ょ郴缁熷凡瀹夎 WebView2 Runtime")
 	}
 	defer w.Destroy()
-	w.SetTitle("私募产品周报")
+	w.SetTitle("绉佸嫙浜у搧鍛ㄦ姤")
 	w.SetSize(1400, 860, webview.HintNone)
 	setWindowIcon(w.Window())
 	w.Navigate(serverURL)
 	w.Run()
 }
 
+func startServiceServer(addr string) {
+	mux := newAppMux("assets/templates/service.html")
+	srv := &http.Server{Addr: addr, Handler: mux}
+	log.Printf("service server listening on http://%s", addr)
+	log.Fatal(srv.ListenAndServe())
+}
+
+func newAppMux(templatePath string) *http.ServeMux {
+	staticFS, _ := fs.Sub(embeddedAssets, "assets/static")
+	mux := http.NewServeMux()
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		serveTemplate(w, templatePath)
+	})
+	mux.HandleFunc("/api/data", handleData)
+	mux.HandleFunc("/api/strategies", handleStrategies)
+	mux.HandleFunc("/api/refresh", handleRefresh)
+	mux.HandleFunc("/api/export/excel", handleExcel)
+	mux.HandleFunc("/api/intervals", handleIntervals)
+	mux.HandleFunc("/api/config", handleConfig)
+	mux.HandleFunc("/api/config/holiday", handleHolidayUpload)
+	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"configured": hasConfig})
+	})
+	mux.HandleFunc("/icon.ico", func(w http.ResponseWriter, r *http.Request) {
+		data, err := embeddedAssets.ReadFile("assets/icon.ico")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/x-icon")
+		_, _ = w.Write(data)
+	})
+	return mux
+}
+
+func serveTemplate(w http.ResponseWriter, path string) {
+	data, err := embeddedAssets.ReadFile(path)
+	if err != nil {
+		http.Error(w, "template not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(data)
+}
+
 func reloadIntervals() error {
-	// Prefer local file (user-updated), fall back to embedded
 	ivData, err := os.ReadFile(filepath.Join(dataDir, "intervals.json"))
 	if err != nil {
 		ivData, err = embeddedAssets.ReadFile("assets/intervals.json")
@@ -138,7 +191,6 @@ func reloadIntervals() error {
 		return err
 	}
 
-	// Prefer local holiday file, fall back to embedded
 	holidays, err := loadHolidays(filepath.Join(dataDir, "Chinese_special_holiday.txt"))
 	if err != nil {
 		hData, err2 := embeddedAssets.ReadFile("assets/Chinese_special_holiday.txt")
@@ -294,7 +346,7 @@ func handleHolidayUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", 405)
 		return
 	}
-	r.ParseMultipartForm(1 << 20)
+	_ = r.ParseMultipartForm(1 << 20)
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "missing file", 400)
@@ -307,11 +359,11 @@ func handleHolidayUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clearCache()
-	reloadIntervals()
+	_ = reloadIntervals()
 	writeJSON(w, map[string]any{"status": "ok"})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
