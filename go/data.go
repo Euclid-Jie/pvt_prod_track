@@ -39,6 +39,98 @@ type Fund struct {
 	Y2023            string `json:"y2023"`
 }
 
+type fundInfo struct {
+	ProdCode   string
+	ProdName   string
+	ProdComp   string
+	ProdType   string
+	Scale      string
+	CompCode   string
+	NavSource  string
+	Fid        sql.NullInt64
+	MetricCode string
+}
+
+func (info fundInfo) metricCode() string {
+	if info.MetricCode != "" {
+		return info.MetricCode
+	}
+	if info.NavSource == "个人净值" && info.Fid.Valid {
+		return fmt.Sprintf("p_%d", info.Fid.Int64)
+	}
+	return info.ProdCode
+}
+
+func appendFundInfoRows(infos []fundInfo, rows *sql.Rows) ([]fundInfo, error) {
+	defer rows.Close()
+	for rows.Next() {
+		var r fundInfo
+		if err := rows.Scan(&r.MetricCode, &r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale, &r.CompCode, &r.NavSource, &r.Fid); err != nil {
+			return nil, err
+		}
+		infos = append(infos, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return infos, nil
+}
+
+func loadManagerScales(euclidDB *sql.DB) (map[string]string, error) {
+	rows, err := euclidDB.Query("SELECT COALESCE(`登记编号`, ''), COALESCE(`管理规模`, '') FROM `量化私募管理人列表`")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	scales := make(map[string]string)
+	for rows.Next() {
+		var compCode, scale string
+		if err := rows.Scan(&compCode, &scale); err != nil {
+			return nil, err
+		}
+		if compCode != "" {
+			scales[compCode] = scale
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return scales, nil
+}
+
+func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
+	var infos []fundInfo
+	managerScales, err := loadManagerScales(euclidDB)
+	if err != nil {
+		return nil, err
+	}
+	queries := []struct {
+		db  *sql.DB
+		sql string
+	}{
+		{euclidDB, "SELECT '', COALESCE(prod_code, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), COALESCE(管理人规模, ''), '', 净值来源, fid FROM fund_basic_info WHERE 净值来源 IS NOT NULL"},
+		{navDB, "SELECT CONCAT('pending:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), prod_comp, COALESCE(ProdType, ''), '', COALESCE(comp_code, ''), '', NULL FROM PendingFund WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''"},
+		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM fof99_nav_index WHERE register_number IS NOT NULL"},
+	}
+	for _, q := range queries {
+		rows, err := q.db.Query(q.sql)
+		if err != nil {
+			return nil, err
+		}
+		infos, err = appendFundInfoRows(infos, rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for i := range infos {
+		if infos[i].Scale == "" && infos[i].CompCode != "" {
+			infos[i].Scale = managerScales[infos[i].CompCode]
+		}
+	}
+	return infos, nil
+}
+
 type cache struct {
 	mu    sync.Mutex
 	funds []Fund
@@ -144,19 +236,10 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		fundCode string
 		vals     []*float64
 	}
-	type infoRow struct {
-		ProdCode  string
-		ProdName  string
-		ProdComp  string
-		ProdType  string
-		Scale     string
-		NavSource string
-		Fid       sql.NullInt64
-	}
 
 	var wg sync.WaitGroup
 	var pivotRows []pivotRow
-	var infos []infoRow
+	var infos []fundInfo
 	var errMetrics, errInfo error
 
 	wg.Add(2)
@@ -182,22 +265,13 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 				pivotRows = append(pivotRows, pivotRow{code, vals})
 			}
 		}
+		if err := rows.Err(); err != nil {
+			errMetrics = err
+		}
 	}()
 	go func() {
 		defer wg.Done()
-		rows, err := euclidDB.Query(
-			"SELECT prod_code, prod_name, prod_comp, prod_type, 管理人规模, 净值来源, fid FROM fund_basic_info WHERE 净值来源 IS NOT NULL")
-		if err != nil {
-			errInfo = err
-			return
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var r infoRow
-			if e := rows.Scan(&r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale, &r.NavSource, &r.Fid); e == nil {
-				infos = append(infos, r)
-			}
-		}
+		infos, errInfo = loadFundInfos(euclidDB, navDB)
 	}()
 	wg.Wait()
 	if errMetrics != nil {
@@ -226,10 +300,7 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 
 	var funds []Fund
 	for _, info := range infos {
-		code := info.ProdCode
-		if info.NavSource == "个人净值" && info.Fid.Valid {
-			code = fmt.Sprintf("p_%d", info.Fid.Int64)
-		}
+		code := info.metricCode()
 		if info.ProdComp != "基准" && pivotMap[code] == nil {
 			continue
 		}

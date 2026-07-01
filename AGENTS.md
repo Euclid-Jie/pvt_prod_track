@@ -87,15 +87,25 @@ First run without `config.json` -> settings modal auto-opens.
 
 **Startup:** `reloadIntervals(lastDay)` -> reads `intervals.json` (local override or embedded) + holiday file -> computes 4 dynamic intervals + yearly intervals -> stored in global `intervals []Interval`.
 
-**First API call:** `loadData()` fires 2 concurrent queries, results cached in `dataCache` until `clearCache()`:
+**First API call:** `loadData()` fires concurrent queries, results cached in `dataCache` until `clearCache()`:
 
 1. **`Nav.nav_interval_metrics`** — server-side pivot: `GROUP BY fund_code` + `MAX(CASE WHEN interval_begin=? AND interval_end=? AND metric_name=? THEN metric_value END)` per interval×metric. Returns ~700 rows (one per fund) instead of ~12000 raw metric rows. `HAVING recent_week_return IS NOT NULL` filters out funds with no recent-week data. **This pivot is the critical performance design — do not replace with a flat SELECT.**
 
 2. **`Euclid.fund_basic_info`** — `(prod_code, prod_name, prod_comp, prod_type, 管理人规模, 净值来源, fid)` where `净值来源 IS NOT NULL`.
 
-**Join key:** `fund_basic_info.prod_code` does NOT directly match `nav_interval_metrics.fund_code`. The join key is derived from `净值来源`:
+3. **`Nav.PendingFund`** — supplemental product info for rows where `prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''`. It is appended after `fund_basic_info` without deduplication.
+
+4. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `PendingFund` without deduplication.
+
+Supplemental rows from `PendingFund` and `fof99_nav_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`.
+
+Detailed source contracts and key mappings are documented in `docs/data-sources.md`.
+
+**Join key:** source product codes do NOT always directly match `nav_interval_metrics.fund_code`. The join key is derived by source:
 - `净值来源 == "个人净值"` -> key = `p_{fid}`
-- otherwise -> key = `prod_code`
+- ordinary `fund_basic_info` rows -> key = `prod_code`
+- `PendingFund` rows -> key = `pending:{PROD_CODE}` (example: `pending:VU448B`)
+- `fof99_nav_index` rows -> key = `fof99:{register_number}` (example: `fof99:SAHC27`)
 
 This key is used to look up rows in the pivot result (`pivotMap` in Go, `key` column in Python).
 

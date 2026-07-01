@@ -48,3 +48,5 @@ go build -o ..\pvt_prod_track_debug.exe .
 - `pvt_prod_track.exe` 只保留原有桌面业务逻辑，继续走 WebView2 和本地随机端口。
 - `pvt_prod_track_web.exe` 是单独的网页版，只用于浏览器和手机查看。
 - 两个程序共用同一套 API 和数据层，但入口和页面是分开的。
+- 数据层以 `Euclid.fund_basic_info` 为主，追加 `Nav.PendingFund` 和 `Nav.fof99_nav_index` 作为补充；`PendingFund` 只纳入 `prod_comp` 非空的行，补充产品在 `Nav.nav_interval_metrics` 中分别使用 `pending:{PROD_CODE}`、`fof99:{register_number}` 作为 `fund_code`，规模通过 `comp_code` 关联 `Euclid.量化私募管理人列表` 获取。
+- 详细数据源、键名和规模补充规则见 [docs/data-sources.md](docs/data-sources.md)。
