@@ -234,8 +234,8 @@ body {
 table {
     border-collapse: collapse;
     table-layout: fixed;
-    width: 978px;
-    min-width: 978px;
+    width: 1030px;
+    min-width: 1030px;
     background: var(--surface);
 }
 
@@ -257,7 +257,7 @@ th {
 }
 
 /* Column widths */
-th:nth-child(1), td:nth-child(1) { width: 68px; }   /* 管理人 */
+th:nth-child(1), td:nth-child(1) { width: 120px; }  /* 管理人 */
 th:nth-child(2), td:nth-child(2) { width: 110px; }  /* 规模 */
 th:nth-child(3), td:nth-child(3) { width: 190px; }  /* 产品名称 */
 th:nth-child(4), td:nth-child(4) { width: 82px; }   /* 策略类型 */
@@ -561,7 +561,7 @@ tbody tr:hover { background: var(--highlight-bg); }
 
 .web-table {
     width: 100%;
-    min-width: 1020px;
+    min-width: 1088px;
     border-collapse: collapse;
     table-layout: fixed;
     font-size: 12px;
@@ -599,6 +599,7 @@ tbody tr:hover { background: var(--highlight-bg); }
     background: var(--web-surface-2);
 }
 
+.web-table .col-rank { width: 68px; }
 .web-table .col-manager { width: 120px; text-align: left; }
 .web-table .col-scale { width: 128px; }
 .web-table .col-strategy { width: 100px; }
@@ -724,21 +725,25 @@ tbody tr:hover { background: var(--highlight-bg); }
         width: 100%;
     }
 
+    .web-table .col-rank {
+        width: 14%;
+    }
+
     .web-table .col-manager {
         width: 24%;
     }
 
     .web-table .col-scale {
-        width: 22%;
+        width: 18%;
     }
 
     .web-table .col-strategy {
-        width: 22%;
+        width: 20%;
     }
 
     .web-table .col-week,
     .web-table .col-ytd {
-        width: 16%;
+        width: 12%;
     }
 
     .web-table th,
@@ -751,6 +756,7 @@ tbody tr:hover { background: var(--highlight-bg); }
 
     .web-table th.col-week,
     .web-table th.col-ytd,
+    .web-table td.col-rank,
     .web-table td.col-week,
     .web-table td.col-ytd {
         white-space: nowrap;

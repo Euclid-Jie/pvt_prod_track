@@ -137,6 +137,10 @@ This key is used to look up rows in the pivot result (`pivotMap` in Go, `key` co
 
 Desktop and web layouts must remain isolated. Do not change `pvt_prod_track.exe` behavior when updating `pvt_prod_track_web.exe`.
 
+The browser/mobile table starts with a rank column formatted as
+`current_index/filtered_total` (for example, `1/93`). The value must be computed
+from the current filtered and sorted result set, not from raw API order.
+
 ## Weekly Update Workflow
 
 Only two things change each week:

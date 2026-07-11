@@ -55,6 +55,10 @@ This binary is separate from `pvt_prod_track.exe` and must not alter the desktop
 
 Desktop and web layouts must remain isolated. Do not change `pvt_prod_track.exe` behavior when updating `pvt_prod_track_web.exe`.
 
+The browser/mobile table starts with a rank column formatted as
+`current_index/filtered_total` (for example, `1/93`). The value must be computed
+from the current filtered and sorted result set, not from raw API order.
+
 ## Data Notes
 
 `loadData()` keeps `Nav.nav_interval_metrics` as a server-side pivot. Base product info comes first from `Euclid.fund_basic_info`; `Nav.PendingFund` rows are appended only when `prod_comp` is non-null and non-blank, and `Nav.fof99_nav_index` is appended without deduplication. Pending rows join metrics with `fund_code = 'pending:' + PROD_CODE`; FOF99 rows join with `fund_code = 'fof99:' + register_number`; formal Euclid rows keep the existing `个人净值 -> p_{fid}` / otherwise `prod_code` rule. Supplemental row scale is filled by mapping `comp_code` to `Euclid.量化私募管理人列表.登记编号` and reading `管理规模`.

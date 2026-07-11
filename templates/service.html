@@ -91,6 +91,7 @@
         <table class="web-table">
           <thead>
             <tr>
+              <th class="col-rank">&#25490;&#21517;</th>
               <th class="col-manager">&#31649;&#29702;&#20154;</th>
               <th class="col-scale">&#35268;&#27169;</th>
               <th class="col-strategy">&#31574;&#30053;&#31867;&#22411;</th>
@@ -219,14 +220,16 @@
       const tbody = el("tableBody");
       tbody.innerHTML = "";
       if (!data.length) {
-        tbody.innerHTML = `<tr><td class="web-empty" colspan="11">${text.noData}</td></tr>`;
+        tbody.innerHTML = `<tr><td class="web-empty" colspan="12">${text.noData}</td></tr>`;
         el("rowMeta").textContent = `0 ${text.rows}`;
         return;
       }
-      for (const fund of data) {
+      const total = data.length;
+      data.forEach((fund, index) => {
         const tr = document.createElement("tr");
         if (fund.manager === "\u57fa\u51c6") tr.classList.add("web-benchmark-row");
         tr.innerHTML = `
+          <td data-label="\u6392\u540d" class="col-rank">${index + 1}/${total}</td>
           <td data-label="\u7ba1\u7406\u4eba" class="col-manager"><span class="web-main-cell">${escapeHtml(fund.manager || "-")}</span></td>
           <td data-label="\u89c4\u6a21" class="col-scale">${escapeHtml(fund.scale || "-")}</td>
           <td data-label="\u7b56\u7565" class="col-strategy">${escapeHtml(fund.strategy || "-")}</td>
@@ -240,7 +243,7 @@
           <td data-label="2023" class="${cls(fund.y2023)} web-desktop-col">${fmt(fund.y2023)}</td>
         `;
         tbody.appendChild(tr);
-      }
+      });
       el("rowMeta").textContent = `${data.length} ${text.rows}`;
     }
 

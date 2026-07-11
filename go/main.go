@@ -122,10 +122,10 @@ func startDesktopApp() {
 
 	w := webview.New(false)
 	if w == nil {
-		log.Fatal("WebView2 鍒濆鍖栧け璐ワ紝璇风‘璁ょ郴缁熷凡瀹夎 WebView2 Runtime")
+		log.Fatal("WebView2 初始化失败，请确认系统已安装 WebView2 Runtime")
 	}
 	defer w.Destroy()
-	w.SetTitle("绉佸嫙浜у搧鍛ㄦ姤")
+	w.SetTitle("私募产品周报")
 	w.SetSize(1400, 860, webview.HintNone)
 	setWindowIcon(w.Window())
 	w.Navigate(serverURL)
