@@ -141,10 +141,25 @@
     let currentStrategy = 'all';
     let currentScale = 'all';
     let currentSearch = '';
+    let dataLoadMessage = '';
+
+    const escapeHtml = value => String(value ?? '-')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    async function fetchJSON(url, options) {
+        const response = await fetch(url, options);
+        if (response.ok) return await response.json();
+        const text = await response.text();
+        throw new Error(text.trim() || `请求失败 (${response.status})`);
+    }
 
     async function loadIntervals() {
         try {
-            const d = await (await fetch('/api/intervals')).json();
+            const d = await fetchJSON('/api/intervals');
             document.getElementById('headerMeta').textContent =
                 `近一周 ${d.week_begin} ~ ${d.week_end} · 今年以来 ${d.ytd_begin} ~ ${d.ytd_end}`;
         } catch (e) {}
@@ -153,20 +168,21 @@
     async function loadData() {
         showLoading(true);
         try {
-            const data = await (await fetch('/api/data')).json();
-            allFundsData = data.funds;
+            const data = await fetchJSON('/api/data');
+            dataLoadMessage = data.message || '';
+            allFundsData = Array.isArray(data.funds) ? data.funds : [];
             fundsData = [...allFundsData];
             filterAndRender();
             document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN');
         } catch (e) {
-            alert('加载数据失败，请检查网络连接');
+            alert('加载数据失败：' + (e.message || '请检查服务和数据库配置'));
         }
         showLoading(false);
     }
 
     async function loadStrategies() {
         try {
-            const data = await (await fetch('/api/strategies')).json();
+            const data = await fetchJSON('/api/strategies');
             const container = document.getElementById('strategyButtons');
             container.innerHTML = '';
 
@@ -225,6 +241,11 @@
     function renderTable(data) {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
+        if (!data.length) {
+            const message = dataLoadMessage || '当前筛选条件下暂无数据';
+            tbody.innerHTML = `<tr><td colspan="12" style="padding:28px;color:#6b7280;text-align:center;white-space:normal;">${escapeHtml(message)}</td></tr>`;
+            return;
+        }
         const fmt = v => {
             if (v === undefined || v === 'nan' || v === '-') return '-';
             const n = parseFloat(v);
@@ -292,11 +313,18 @@
     }
 
     function exportExcel() { window.open('/api/export/excel', '_blank'); }
-    function refreshData() { fetch('/api/refresh', {method:'POST'}).then(() => loadData()); }
+    async function refreshData() {
+        try {
+            await fetchJSON('/api/refresh', {method:'POST'});
+            await loadData();
+        } catch (e) {
+            alert('刷新失败：' + (e.message || '请检查服务和数据库配置'));
+        }
+    }
     function showLoading(s) { document.getElementById('loading').style.display = s ? 'flex' : 'none'; }
 
     async function openSettings() {
-        const d = await (await fetch('/api/config')).json();
+        const d = await fetchJSON('/api/config');
         document.getElementById('s_host').value = d.db_host || '';
         document.getElementById('s_port').value = d.db_port || '3306';
         document.getElementById('s_user').value = d.db_user || '';
@@ -316,14 +344,20 @@
             db_pass: document.getElementById('s_pass').value,
             last_day: document.getElementById('s_lastday').value.trim(),
         };
-        const r = await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-        if (!r.ok) { msg.style.color='red'; msg.textContent = '保存失败: ' + await r.text(); return; }
+        try {
+            await fetchJSON('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+        } catch (e) {
+            msg.style.color='red'; msg.textContent = '保存失败: ' + e.message; return;
+        }
 
         const file = document.getElementById('s_holiday').files[0];
         if (file) {
             const fd = new FormData(); fd.append('file', file);
-            const r2 = await fetch('/api/config/holiday', {method:'POST', body: fd});
-            if (!r2.ok) { msg.style.color='red'; msg.textContent = '节假日文件上传失败'; return; }
+            try {
+                await fetchJSON('/api/config/holiday', {method:'POST', body: fd});
+            } catch (e) {
+                msg.style.color='red'; msg.textContent = '节假日文件上传失败: ' + e.message; return;
+            }
         }
 
         msg.style.color = 'green'; msg.textContent = '保存成功，数据已刷新';
@@ -334,7 +368,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         loadIntervals();
         loadStrategies();
-        fetch('/api/status').then(r => r.json()).then(d => {
+        fetchJSON('/api/status').then(d => {
             if (!d.configured) { openSettings(); } else { loadData(); }
         });
     });

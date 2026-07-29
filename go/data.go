@@ -298,7 +298,7 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		return vals[i]
 	}
 
-	var funds []Fund
+	funds := make([]Fund, 0, len(infos))
 	for _, info := range infos {
 		code := info.metricCode()
 		if info.ProdComp != "基准" && pivotMap[code] == nil {

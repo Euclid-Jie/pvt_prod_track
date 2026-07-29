@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -232,17 +233,38 @@ func handleData(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	message := ""
+	if len(funds) == 0 {
+		message = noDataMessage()
+	}
 	strategy := r.URL.Query().Get("strategy")
 	result := funds
 	if strategy != "" && strategy != "all" {
-		result = nil
+		result = []Fund{}
 		for _, f := range funds {
 			if f.Strategy == strategy {
 				result = append(result, f)
 			}
 		}
 	}
-	writeJSON(w, map[string]any{"funds": result})
+	if result == nil {
+		result = []Fund{}
+	}
+	resp := map[string]any{"funds": result}
+	if message != "" {
+		resp["message"] = message
+	}
+	writeJSON(w, resp)
+}
+
+func noDataMessage() string {
+	if cfg.LastDay == "" {
+		return "未设置最新交易日 last_day，请先在设置中填写后刷新。"
+	}
+	if weekIV.Begin != "" && weekIV.End != "" {
+		return fmt.Sprintf("最新交易日 %s 暂无近一周指标数据（区间 %s 至 %s）。请确认 Nav.nav_interval_metrics 已生成该交易日数据，或将 last_day 调整为已有数据的交易日后刷新。", cfg.LastDay, weekIV.Begin, weekIV.End)
+	}
+	return fmt.Sprintf("最新交易日 %s 暂无指标数据。请确认数据已生成，或将 last_day 调整为已有数据的交易日后刷新。", cfg.LastDay)
 }
 
 func handleStrategies(w http.ResponseWriter, r *http.Request) {
@@ -364,6 +386,6 @@ func handleHolidayUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(v)
 }

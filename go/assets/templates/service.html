@@ -132,6 +132,7 @@
     let allFundsData = [];
     let rankingData = [];
     let filteredData = [];
+    let dataLoadMessage = "";
     const fixedRankMedia = window.matchMedia("(min-width: 721px)");
 
     const el = id => document.getElementById(id);
@@ -157,9 +158,16 @@
       const v = parseFloat(f[k]);
       return Number.isNaN(v) ? null : v;
     };
+    async function fetchJSON(url, options) {
+      const response = await fetch(url, options);
+      if (response.ok) return await response.json();
+      const text = await response.text();
+      throw new Error(text.trim() || `请求失败 (${response.status})`);
+    }
+
     async function loadIntervals() {
       try {
-        const d = await (await fetch("/api/intervals")).json();
+        const d = await fetchJSON("/api/intervals");
         el("weekRange").textContent = `${d.week_begin || "-"} ~ ${d.week_end || "-"}`;
         el("ytdRange").textContent = `${d.ytd_begin || "-"} ~ ${d.ytd_end || "-"}`;
       } catch (e) {
@@ -183,13 +191,14 @@
     async function loadData() {
       showLoading(true);
       try {
-        const data = await (await fetch("/api/data")).json();
-        allFundsData = data.funds || [];
+        const data = await fetchJSON("/api/data");
+        dataLoadMessage = data.message || "";
+        allFundsData = Array.isArray(data.funds) ? data.funds : [];
         await loadStrategies();
         applyFilters();
         el("updateTime").textContent = `${text.updated} ${new Date().toLocaleTimeString("zh-CN")}`;
       } catch (e) {
-        alert(text.loadFailed);
+        alert(`${text.loadFailed}: ${e.message || ""}`.trim());
       } finally {
         showLoading(false);
       }
@@ -257,7 +266,7 @@
       const tbody = el("tableBody");
       tbody.innerHTML = "";
       if (!data.length) {
-        tbody.innerHTML = `<tr><td class="web-empty" colspan="12">${text.noData}</td></tr>`;
+        tbody.innerHTML = `<tr><td class="web-empty" colspan="12">${escapeHtml(dataLoadMessage || text.noData)}</td></tr>`;
         el("rowMeta").textContent = `0 ${text.rows}`;
         return;
       }
@@ -308,8 +317,12 @@
     el("clearFiltersBtn").addEventListener("click", clearFilters);
     fixedRankMedia.addEventListener("change", sortAndRender);
     el("refreshBtn").addEventListener("click", async () => {
-      await fetch("/api/refresh", {method: "POST"});
-      await loadData();
+      try {
+        await fetchJSON("/api/refresh", {method: "POST"});
+        await loadData();
+      } catch (e) {
+        alert(`${text.loadFailed}: ${e.message || ""}`.trim());
+      }
     });
     el("exportBtn").addEventListener("click", () => {
       window.open("/api/export/excel", "_blank");
