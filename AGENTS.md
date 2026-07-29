@@ -140,6 +140,12 @@ Desktop and web layouts must remain isolated. Do not change `pvt_prod_track.exe`
 The browser/mobile table starts with a rank column formatted as
 `current_index/filtered_total` (for example, `1/93`). The value must be computed
 from the current filtered and sorted result set, not from raw API order.
+In the desktop-width web view, enabling fixed ranking keeps the strategy/scale/sort
+ranking pool while manager keywords only choose displayed rows. The mobile view
+does not expose fixed ranking and continues to rerank the visible result set.
+The desktop web table heading shows the active strategy, scale, and sort order.
+Clear filters empties manager keywords, restores strategy/scale to all, selects
+recent-week sorting, and disables fixed ranking.
 
 ## Weekly Update Workflow
 

@@ -51,7 +51,7 @@
       <div class="web-filter-grid">
         <label class="web-field web-search-field">
           <span>&#20851;&#38190;&#35789;</span>
-          <input id="searchInput" type="search" placeholder="&#31649;&#29702;&#20154;">
+          <input id="searchInput" type="search" placeholder="&#31649;&#29702;&#20154;&#65292;&#31354;&#26684;&#20998;&#38548;">
         </label>
         <label class="web-field">
           <span>&#31574;&#30053;&#31867;&#22411;</span>
@@ -67,15 +67,24 @@
             <option value="small">50&#20159;&#20197;&#19979;</option>
           </select>
         </label>
-        <label class="web-field">
+        <div class="web-field">
           <span>&#25490;&#24207;</span>
-          <select id="sortSelect">
-            <option value="recent_week">&#36817;&#19968;&#21608;</option>
-            <option value="ytd">YTD</option>
-            <option value="recent_year">&#36817;&#19968;&#24180;</option>
-            <option value="manager">&#31649;&#29702;&#20154;</option>
-          </select>
-        </label>
+          <div class="web-sort-row">
+            <select id="sortSelect">
+              <option value="recent_week">&#36817;&#19968;&#21608;</option>
+              <option value="ytd">YTD</option>
+              <option value="recent_year">&#36817;&#19968;&#24180;</option>
+              <option value="manager">&#31649;&#29702;&#20154;</option>
+            </select>
+            <div class="web-filter-actions">
+              <label class="web-rank-lock">
+                <input id="fixedRankCheckbox" type="checkbox">
+                <span>&#22266;&#23450;&#25490;&#21517;</span>
+              </label>
+              <button id="clearFiltersBtn" class="web-btn web-clear-filters" type="button">&#28165;&#31354;&#26465;&#20214;</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -83,7 +92,7 @@
       <div class="web-panel-head">
         <div>
           <h2>&#20135;&#21697;&#26126;&#32454;</h2>
-          <span class="web-mobile-note">&#25163;&#26426;&#35270;&#22270;&#20165;&#26174;&#31034;&#26412;&#21608;&#21644; YTD</span>
+          <div id="filterSummary" class="web-filter-summary"></div>
         </div>
         <span id="rowMeta" class="web-sync">-</span>
       </div>
@@ -121,7 +130,9 @@
       updated: "\u5df2\u66f4\u65b0"
     };
     let allFundsData = [];
+    let rankingData = [];
     let filteredData = [];
+    const fixedRankMedia = window.matchMedia("(min-width: 721px)");
 
     const el = id => document.getElementById(id);
     const escapeHtml = value => String(value ?? "-")
@@ -146,7 +157,6 @@
       const v = parseFloat(f[k]);
       return Number.isNaN(v) ? null : v;
     };
-
     async function loadIntervals() {
       try {
         const d = await (await fetch("/api/intervals")).json();
@@ -186,37 +196,64 @@
     }
 
     function applyFilters() {
-      const search = el("searchInput").value.trim().toLowerCase();
+      const searchTerms = el("searchInput").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
       const strategy = el("strategySelect").value;
       const scale = el("scaleSelect").value;
-      filteredData = allFundsData.filter(fund => {
+      rankingData = allFundsData.filter(fund => {
         if (strategy !== "all" && fund.strategy !== strategy) return false;
         if (scale === "large" && fund.scale_level === "\u5c0f\u5382") return false;
         if (scale === "small" && fund.scale_level === "\u5927\u5382") return false;
-        if (search) {
-          const manager = (fund.manager || "").toLowerCase();
-          if (!manager.includes(search)) return false;
-        }
         return true;
+      });
+      filteredData = rankingData.filter(fund => {
+        if (!searchTerms.length) return true;
+        const manager = (fund.manager || "").toLowerCase();
+        return searchTerms.some(term => manager.includes(term));
       });
       sortAndRender();
       updateStats();
     }
 
     function sortAndRender() {
+      updateFilterSummary();
       const by = el("sortSelect").value;
-      const sorted = [...filteredData].sort((a, b) => {
+      const compareFunds = (a, b) => {
         if (by === "manager") return (a.manager || "").localeCompare(b.manager || "", "zh-CN");
         const av = numVal(a, by), bv = numVal(b, by);
         if (av === null && bv === null) return 0;
         if (av === null) return 1;
         if (bv === null) return -1;
         return bv - av;
-      });
+      };
+      const sorted = [...filteredData].sort(compareFunds);
+      if (fixedRankMedia.matches && el("fixedRankCheckbox").checked) {
+        const ranking = [...rankingData].sort(compareFunds);
+        const rankByFund = new Map(ranking.map((fund, index) => [fund, index + 1]));
+        renderTable(sorted, rankByFund, ranking.length);
+        return;
+      }
       renderTable(sorted);
     }
 
-    function renderTable(data) {
+    function updateFilterSummary() {
+      const strategy = el("strategySelect").selectedOptions[0]?.textContent || "\u5168\u90e8";
+      const scale = el("scaleSelect").selectedOptions[0]?.textContent || "\u5168\u90e8";
+      const sort = el("sortSelect").selectedOptions[0]?.textContent || "\u8fd1\u4e00\u5468";
+      const strategyText = strategy === "\u5168\u90e8" ? "\u5168\u90e8\u7b56\u7565" : strategy;
+      const scaleText = scale === "\u5168\u90e8" ? "\u5168\u90e8\u7ba1\u7406\u4eba\u89c4\u6a21" : `\u7ba1\u7406\u4eba\u89c4\u6a21${scale}`;
+      el("filterSummary").textContent = `\u5f53\u524d\uff1a${strategyText} \u00b7 ${scaleText} \u00b7 ${sort}\u6392\u5e8f`;
+    }
+
+    function clearFilters() {
+      el("searchInput").value = "";
+      el("strategySelect").value = "all";
+      el("scaleSelect").value = "all";
+      el("sortSelect").value = "recent_week";
+      el("fixedRankCheckbox").checked = false;
+      applyFilters();
+    }
+
+    function renderTable(data, rankByFund = null, rankTotal = data.length) {
       const tbody = el("tableBody");
       tbody.innerHTML = "";
       if (!data.length) {
@@ -224,12 +261,11 @@
         el("rowMeta").textContent = `0 ${text.rows}`;
         return;
       }
-      const total = data.length;
       data.forEach((fund, index) => {
         const tr = document.createElement("tr");
         if (fund.manager === "\u57fa\u51c6") tr.classList.add("web-benchmark-row");
         tr.innerHTML = `
-          <td data-label="\u6392\u540d" class="col-rank">${index + 1}/${total}</td>
+          <td data-label="\u6392\u540d" class="col-rank">${rankByFund ? rankByFund.get(fund) : index + 1}/${rankTotal}</td>
           <td data-label="\u7ba1\u7406\u4eba" class="col-manager"><span class="web-main-cell">${escapeHtml(fund.manager || "-")}</span></td>
           <td data-label="\u89c4\u6a21" class="col-scale">${escapeHtml(fund.scale || "-")}</td>
           <td data-label="\u7b56\u7565" class="col-strategy">${escapeHtml(fund.strategy || "-")}</td>
@@ -268,6 +304,9 @@
     el("strategySelect").addEventListener("change", applyFilters);
     el("scaleSelect").addEventListener("change", applyFilters);
     el("sortSelect").addEventListener("change", sortAndRender);
+    el("fixedRankCheckbox").addEventListener("change", sortAndRender);
+    el("clearFiltersBtn").addEventListener("click", clearFilters);
+    fixedRankMedia.addEventListener("change", sortAndRender);
     el("refreshBtn").addEventListener("click", async () => {
       await fetch("/api/refresh", {method: "POST"});
       await loadData();
