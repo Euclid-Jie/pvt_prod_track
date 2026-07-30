@@ -210,8 +210,9 @@
       const scale = el("scaleSelect").value;
       rankingData = allFundsData.filter(fund => {
         if (strategy !== "all" && fund.strategy !== strategy) return false;
-        if (scale === "large" && fund.scale_level === "\u5c0f\u5382") return false;
-        if (scale === "small" && fund.scale_level === "\u5927\u5382") return false;
+        const hasScale = !["", "-"].includes(String(fund.scale || "").trim());
+        if (hasScale && scale === "large" && fund.scale_level === "\u5c0f\u5382") return false;
+        if (hasScale && scale === "small" && fund.scale_level === "\u5927\u5382") return false;
         return true;
       });
       filteredData = rankingData.filter(fund => {

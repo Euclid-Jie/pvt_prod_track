@@ -63,6 +63,8 @@ and the manager cell is rendered as a light-blue tag.
 In the desktop-width web view, enabling fixed ranking keeps the strategy/scale/sort
 ranking pool while manager keywords only choose displayed rows. The mobile view
 does not expose fixed ranking and continues to rerank the visible result set.
+Rows with empty scale or `-` remain visible under large/small scale filters because
+index products may not have manager scale.
 The desktop web table heading shows the active strategy, scale, and sort order.
 Clear filters empties manager keywords, restores strategy/scale to all, selects
 recent-week sorting, and disables fixed ranking.
