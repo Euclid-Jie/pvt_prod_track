@@ -111,7 +111,8 @@ func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 	}{
 		{euclidDB, "SELECT '', COALESCE(prod_code, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), COALESCE(管理人规模, ''), '', 净值来源, fid FROM fund_basic_info WHERE 净值来源 IS NOT NULL"},
 		{navDB, "SELECT CONCAT('pending:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), prod_comp, COALESCE(ProdType, ''), '', COALESCE(comp_code, ''), '', NULL FROM PendingFund WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''"},
-		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM fof99_nav_index WHERE register_number IS NOT NULL"},
+		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM fof99_nav_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
+		{navDB, "SELECT CONCAT('smw:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM smw_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
 	}
 	for _, q := range queries {
 		rows, err := q.db.Query(q.sql)

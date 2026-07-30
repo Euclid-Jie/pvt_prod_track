@@ -97,7 +97,9 @@ First run without `config.json` -> settings modal auto-opens.
 
 4. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `PendingFund` without deduplication.
 
-Supplemental rows from `PendingFund` and `fof99_nav_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`.
+5. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
+
+Supplemental rows from `PendingFund`, `fof99_nav_index`, and `smw_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`.
 
 Detailed source contracts and key mappings are documented in `docs/data-sources.md`.
 
@@ -106,6 +108,7 @@ Detailed source contracts and key mappings are documented in `docs/data-sources.
 - ordinary `fund_basic_info` rows -> key = `prod_code`
 - `PendingFund` rows -> key = `pending:{PROD_CODE}` (example: `pending:VU448B`)
 - `fof99_nav_index` rows -> key = `fof99:{register_number}` (example: `fof99:SAHC27`)
+- `smw_index` rows -> key = `smw:{register_number}` (example: `smw:SAVW31`)
 
 This key is used to look up rows in the pivot result (`pivotMap` in Go, `key` column in Python).
 

@@ -51,7 +51,7 @@ go build -o ..\pvt_prod_track_debug.exe .
 - 服务版表格首列是当前筛选和排序结果下的排名，格式为 `当前序号/当前总数`，例如 `1/93`。
 - 服务版桌面视图可勾选“固定排名”：策略、规模和排序决定排名池，管理人关键词只控制显示行；手机视图仍按可见结果重新排名。
 - “产品明细”下方会显示当前策略、管理人规模和排序方式；“清空条件”会清空管理人关键词、恢复全部策略和规模、切回近一周排序并取消固定排名。
-- 数据层以 `Euclid.fund_basic_info` 为主，追加 `Nav.PendingFund` 与 `Nav.fof99_nav_index` 作为补充来源。
-- 补充产品在 `Nav.nav_interval_metrics` 中分别使用 `pending:{PROD_CODE}`、`fof99:{register_number}` 作为 `fund_code`。
+- 数据层以 `Euclid.fund_basic_info` 为主，追加 `Nav.PendingFund`、`Nav.fof99_nav_index` 与 `Nav.smw_index` 作为补充来源。
+- 补充产品在 `Nav.nav_interval_metrics` 中分别使用 `pending:{PROD_CODE}`、`fof99:{register_number}`、`smw:{register_number}` 作为 `fund_code`。
 - 补充产品规模通过 `comp_code` 关联 `Euclid.量化私募管理人列表.登记编号` 后读取 `管理规模`。
 - 详细数据源、键名和规模补充规则见 [docs/data-sources.md](docs/data-sources.md)。
