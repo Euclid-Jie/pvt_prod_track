@@ -644,6 +644,14 @@ tbody tr:hover { background: var(--highlight-bg); }
     background: var(--web-surface-2);
 }
 
+.web-index-manager-row td {
+    background: #eff6ff;
+}
+
+.web-table .web-index-manager-row:hover td {
+    background: #dbeafe;
+}
+
 .web-table .col-rank { width: 68px; }
 .web-table .col-manager { width: 120px; text-align: left; }
 .web-table .col-scale { width: 128px; }
@@ -653,6 +661,19 @@ tbody tr:hover { background: var(--highlight-bg); }
 
 .web-main-cell {
     font-weight: 600;
+}
+
+.web-index-manager-tag {
+    display: inline-block;
+    max-width: 100%;
+    padding: 2px 7px;
+    border: 1px solid #bfdbfe;
+    border-radius: 4px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
 }
 
 .web-positive {

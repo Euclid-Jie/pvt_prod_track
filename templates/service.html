@@ -272,10 +272,14 @@
       }
       data.forEach((fund, index) => {
         const tr = document.createElement("tr");
+        const manager = fund.manager || "-";
+        const isIndexManager = manager.includes("\u6307\u6570");
+        const managerClass = isIndexManager ? "web-main-cell web-index-manager-tag" : "web-main-cell";
+        if (isIndexManager) tr.classList.add("web-index-manager-row");
         if (fund.manager === "\u57fa\u51c6") tr.classList.add("web-benchmark-row");
         tr.innerHTML = `
           <td data-label="\u6392\u540d" class="col-rank">${rankByFund ? rankByFund.get(fund) : index + 1}/${rankTotal}</td>
-          <td data-label="\u7ba1\u7406\u4eba" class="col-manager"><span class="web-main-cell">${escapeHtml(fund.manager || "-")}</span></td>
+          <td data-label="\u7ba1\u7406\u4eba" class="col-manager"><span class="${managerClass}">${escapeHtml(manager)}</span></td>
           <td data-label="\u89c4\u6a21" class="col-scale">${escapeHtml(fund.scale || "-")}</td>
           <td data-label="\u7b56\u7565" class="col-strategy">${escapeHtml(fund.strategy || "-")}</td>
           <td data-label="\u672c\u5468" class="${cls(fund.recent_week)} col-week">${fmt(fund.recent_week)}</td>
