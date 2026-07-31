@@ -99,6 +99,38 @@ func loadManagerScales(euclidDB *sql.DB) (map[string]string, error) {
 	return scales, nil
 }
 
+func loadBackupFundCodes(navDB *sql.DB) (map[string]struct{}, error) {
+	rows, err := navDB.Query("SELECT fund_code FROM nav_product_preferences WHERE is_backup = 1")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	codes := make(map[string]struct{})
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		codes[code] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return codes, nil
+}
+
+func excludeBackupFundInfos(infos []fundInfo, backupCodes map[string]struct{}) []fundInfo {
+	filtered := make([]fundInfo, 0, len(infos))
+	for _, info := range infos {
+		if _, isBackup := backupCodes[info.metricCode()]; isBackup {
+			continue
+		}
+		filtered = append(filtered, info)
+	}
+	return filtered
+}
+
 func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 	var infos []fundInfo
 	managerScales, err := loadManagerScales(euclidDB)
@@ -129,7 +161,11 @@ func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 			infos[i].Scale = managerScales[infos[i].CompCode]
 		}
 	}
-	return infos, nil
+	backupCodes, err := loadBackupFundCodes(navDB)
+	if err != nil {
+		return nil, err
+	}
+	return excludeBackupFundInfos(infos, backupCodes), nil
 }
 
 type cache struct {

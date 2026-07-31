@@ -99,6 +99,8 @@ First run without `config.json` -> settings modal auto-opens.
 
 5. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
 
+6. **`Nav.nav_product_preferences`** — read `fund_code` rows where `is_backup = 1` and exclude those products after resolving each source's standard metric key. This is an explicit operator preference, not automatic deduplication. The report must never write or infer backup status.
+
 Supplemental rows from `PendingFund`, `fof99_nav_index`, and `smw_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`.
 
 Detailed source contracts and key mappings are documented in `docs/data-sources.md`.

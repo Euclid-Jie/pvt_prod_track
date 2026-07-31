@@ -73,4 +73,6 @@ recent-week sorting, and disables fixed ranking.
 
 `loadData()` keeps `Nav.nav_interval_metrics` as a server-side pivot. Base product info comes first from `Euclid.fund_basic_info`; `Nav.PendingFund`, `Nav.fof99_nav_index`, and `Nav.smw_index` are appended without deduplication. Pending rows join metrics with `fund_code = 'pending:' + PROD_CODE`; FOF99 rows join with `fund_code = 'fof99:' + register_number`; SimuWang rows join with `fund_code = 'smw:' + register_number`; formal Euclid rows keep the existing `个人净值 -> p_{fid}` / otherwise `prod_code` rule. Supplemental row scale is filled by mapping `comp_code` to `Euclid.量化私募管理人列表.登记编号` and reading `管理规模`.
 
+After resolving those standard metric keys, `loadData()` excludes keys explicitly marked with `is_backup = 1` in `Nav.nav_product_preferences`. The report only reads this operator-maintained preference and must not write or infer backup status.
+
 Detailed source contracts and key mappings are documented in `docs/data-sources.md`.
