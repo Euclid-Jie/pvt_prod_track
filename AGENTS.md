@@ -99,9 +99,11 @@ First run without `config.json` -> settings modal auto-opens.
 
 5. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
 
-6. **`Nav.nav_product_preferences`** — read `fund_code` rows where `is_backup = 1` and exclude those products after resolving each source's standard metric key. This is an explicit operator preference, not automatic deduplication. The report must never write or infer backup status.
+6. **`Nav.mail_nav_index`** — supplemental Mail NAV product info for enabled rows with non-empty `prod_comp`, `product_key`, and `prod_type`. It is appended after `smw_index` without deduplication.
 
-Supplemental rows from `PendingFund`, `fof99_nav_index`, and `smw_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`.
+7. **`Nav.nav_product_preferences`** — read `fund_code` rows where `is_backup = 1` and exclude those products after resolving each source's standard metric key. This is an explicit operator preference, not automatic deduplication. The report must never write or infer backup status.
+
+Supplemental rows from `PendingFund`, `fof99_nav_index`, `smw_index`, and `mail_nav_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`.
 
 Detailed source contracts and key mappings are documented in `docs/data-sources.md`.
 
@@ -111,6 +113,7 @@ Detailed source contracts and key mappings are documented in `docs/data-sources.
 - `PendingFund` rows -> key = `pending:{PROD_CODE}` (example: `pending:VU448B`)
 - `fof99_nav_index` rows -> key = `fof99:{register_number}` (example: `fof99:SAHC27`)
 - `smw_index` rows -> key = `smw:{register_number}` (example: `smw:SAVW31`)
+- `mail_nav_index` rows -> key = `mail:{product_key}`
 
 This key is used to look up rows in the pivot result (`pivotMap` in Go, `key` column in Python).
 
@@ -145,6 +148,7 @@ Desktop and web layouts must remain isolated. Do not change `pvt_prod_track.exe`
 The browser/mobile table starts with a rank column formatted as
 `current_index/filtered_total` (for example, `1/93`). The value must be computed
 from the current filtered and sorted result set, not from raw API order.
+The performance columns are ordered as recent week, recent month, YTD, and recent year.
 Rows whose manager name contains `指数` are marked with a light-blue row background,
 and the manager cell is rendered as a light-blue tag.
 In the desktop-width web view, enabling fixed ranking keeps the strategy/scale/sort

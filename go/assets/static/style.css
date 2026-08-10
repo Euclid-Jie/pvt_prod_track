@@ -234,8 +234,8 @@ body {
 table {
     border-collapse: collapse;
     table-layout: fixed;
-    width: 1030px;
-    min-width: 1030px;
+    width: 1098px;
+    min-width: 1098px;
     background: var(--surface);
 }
 
@@ -262,13 +262,14 @@ th:nth-child(2), td:nth-child(2) { width: 110px; }  /* 规模 */
 th:nth-child(3), td:nth-child(3) { width: 190px; }  /* 产品名称 */
 th:nth-child(4), td:nth-child(4) { width: 82px; }   /* 策略类型 */
 th:nth-child(5), td:nth-child(5) { width: 68px; }   /* 近一周 */
-th:nth-child(6), td:nth-child(6) { width: 68px; }   /* 今年以来 */
-th:nth-child(7), td:nth-child(7) { width: 68px; }   /* 近一年 */
-th:nth-child(8), td:nth-child(8) { width: 68px; }   /* 近一年夏普 */
-th:nth-child(9), td:nth-child(9) { width: 68px; }   /* 近一年MDD */
-th:nth-child(10), td:nth-child(10) { width: 62px; } /* 2025 */
-th:nth-child(11), td:nth-child(11) { width: 62px; } /* 2024 */
-th:nth-child(12), td:nth-child(12) { width: 62px; } /* 2023 */
+th:nth-child(6), td:nth-child(6) { width: 68px; }   /* 近一月 */
+th:nth-child(7), td:nth-child(7) { width: 68px; }   /* 今年以来 */
+th:nth-child(8), td:nth-child(8) { width: 68px; }   /* 近一年 */
+th:nth-child(9), td:nth-child(9) { width: 68px; }   /* 近一年夏普 */
+th:nth-child(10), td:nth-child(10) { width: 68px; } /* 近一年MDD */
+th:nth-child(11), td:nth-child(11) { width: 62px; } /* 2025 */
+th:nth-child(12), td:nth-child(12) { width: 62px; } /* 2024 */
+th:nth-child(13), td:nth-child(13) { width: 62px; } /* 2023 */
 
 td {
     padding: 10px 8px;
@@ -451,7 +452,7 @@ tbody tr:hover { background: var(--highlight-bg); }
 
 .web-stats {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 12px;
 }
 
@@ -606,7 +607,7 @@ tbody tr:hover { background: var(--highlight-bg); }
 
 .web-table {
     width: 100%;
-    min-width: 1088px;
+    min-width: 1174px;
     border-collapse: collapse;
     table-layout: fixed;
     font-size: 12px;
@@ -657,7 +658,10 @@ tbody tr:hover { background: var(--highlight-bg); }
 .web-table .col-scale { width: 128px; }
 .web-table .col-strategy { width: 100px; }
 .web-table .col-week,
+.web-table .col-month,
 .web-table .col-ytd { width: 86px; }
+
+.web-mobile-break { display: none; }
 
 .web-main-cell {
     font-weight: 600;
@@ -757,6 +761,10 @@ tbody tr:hover { background: var(--highlight-bg); }
         display: none !important;
     }
 
+    .web-table .col-month {
+        display: none !important;
+    }
+
     .web-stat {
         min-height: 64px;
         padding: 10px 12px;
@@ -830,7 +838,14 @@ tbody tr:hover { background: var(--highlight-bg); }
     }
 
     .web-table th.col-week,
-    .web-table th.col-ytd,
+    .web-table th.col-ytd {
+        white-space: normal;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .web-mobile-break { display: initial; }
+
     .web-table td.col-rank,
     .web-table td.col-week,
     .web-table td.col-ytd {

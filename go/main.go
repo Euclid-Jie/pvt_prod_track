@@ -34,6 +34,7 @@ var (
 	cfg       Config
 	intervals []Interval
 	weekIV    Interval
+	monthIV   Interval
 	ytdIV     Interval
 	hasConfig bool
 	dataDir   string
@@ -216,6 +217,9 @@ func reloadIntervals() error {
 		if iv.Name == "recent_week" {
 			weekIV = iv
 		}
+		if iv.Name == "recent_month" {
+			monthIV = iv
+		}
 		if iv.Name == "ytd" {
 			ytdIV = iv
 		}
@@ -320,10 +324,12 @@ func handleExcel(w http.ResponseWriter, r *http.Request) {
 
 func handleIntervals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
-		"week_begin": weekIV.Begin,
-		"week_end":   weekIV.End,
-		"ytd_begin":  ytdIV.Begin,
-		"ytd_end":    ytdIV.End,
+		"week_begin":  weekIV.Begin,
+		"week_end":    weekIV.End,
+		"month_begin": monthIV.Begin,
+		"month_end":   monthIV.End,
+		"ytd_begin":   ytdIV.Begin,
+		"ytd_end":     ytdIV.End,
 	})
 }
 

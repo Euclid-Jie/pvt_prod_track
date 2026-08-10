@@ -35,6 +35,11 @@
         <div class="web-stat-value" id="avgRecentWeek">-</div>
         <div class="web-stat-hint" id="weekRange">-</div>
       </article>
+      <article class="web-stat web-desktop-only">
+        <div class="web-stat-label">&#36817;&#19968;&#26376;&#24179;&#22343;</div>
+        <div class="web-stat-value" id="avgRecentMonth">-</div>
+        <div class="web-stat-hint" id="monthRange">-</div>
+      </article>
       <article class="web-stat">
         <div class="web-stat-label">YTD &#24179;&#22343;</div>
         <div class="web-stat-value" id="avgYtd">-</div>
@@ -72,6 +77,7 @@
           <div class="web-sort-row">
             <select id="sortSelect">
               <option value="recent_week">&#36817;&#19968;&#21608;</option>
+              <option value="recent_month">&#36817;&#19968;&#26376;</option>
               <option value="ytd">YTD</option>
               <option value="recent_year">&#36817;&#19968;&#24180;</option>
               <option value="manager">&#31649;&#29702;&#20154;</option>
@@ -105,7 +111,8 @@
               <th class="col-scale">&#35268;&#27169;</th>
               <th class="col-strategy">&#31574;&#30053;&#31867;&#22411;</th>
               <th class="col-week">&#36817;&#19968;&#21608;(%)</th>
-              <th class="col-ytd">YTD(%)</th>
+              <th class="col-month">&#36817;&#19968;&#26376;(%)</th>
+              <th class="col-ytd">YTD<br class="web-mobile-break">(%)</th>
               <th class="web-desktop-col">&#36817;&#19968;&#24180;(%)</th>
               <th class="web-desktop-col">&#36817;&#19968;&#24180;&#22799;&#26222;</th>
               <th class="web-desktop-col">&#36817;&#19968;&#24180;&#26368;&#22823;&#22238;&#25764;(%)</th>
@@ -169,9 +176,11 @@
       try {
         const d = await fetchJSON("/api/intervals");
         el("weekRange").textContent = `${d.week_begin || "-"} ~ ${d.week_end || "-"}`;
+        el("monthRange").textContent = `${d.month_begin || "-"} ~ ${d.month_end || "-"}`;
         el("ytdRange").textContent = `${d.ytd_begin || "-"} ~ ${d.ytd_end || "-"}`;
       } catch (e) {
         el("weekRange").textContent = "-";
+        el("monthRange").textContent = "-";
         el("ytdRange").textContent = "-";
       }
     }
@@ -267,7 +276,7 @@
       const tbody = el("tableBody");
       tbody.innerHTML = "";
       if (!data.length) {
-        tbody.innerHTML = `<tr><td class="web-empty" colspan="12">${escapeHtml(dataLoadMessage || text.noData)}</td></tr>`;
+        tbody.innerHTML = `<tr><td class="web-empty" colspan="13">${escapeHtml(dataLoadMessage || text.noData)}</td></tr>`;
         el("rowMeta").textContent = `0 ${text.rows}`;
         return;
       }
@@ -284,6 +293,7 @@
           <td data-label="\u89c4\u6a21" class="col-scale">${escapeHtml(fund.scale || "-")}</td>
           <td data-label="\u7b56\u7565" class="col-strategy">${escapeHtml(fund.strategy || "-")}</td>
           <td data-label="\u672c\u5468" class="${cls(fund.recent_week)} col-week">${fmt(fund.recent_week)}</td>
+          <td data-label="\u8fd1\u4e00\u6708" class="${cls(fund.recent_month)} col-month">${fmt(fund.recent_month)}</td>
           <td data-label="YTD" class="${cls(fund.ytd)} col-ytd">${fmt(fund.ytd)}</td>
           <td data-label="\u8fd1\u4e00\u5e74" class="${cls(fund.recent_year)} web-desktop-col">${fmt(fund.recent_year)}</td>
           <td data-label="\u590f\u666e" class="${cls(fund.recent_year_sharpe)} web-desktop-col">${fmt(fund.recent_year_sharpe)}</td>
@@ -306,6 +316,7 @@
         return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) + "%";
       };
       el("avgRecentWeek").textContent = avg("recent_week");
+      el("avgRecentMonth").textContent = avg("recent_month");
       el("avgYtd").textContent = avg("ytd");
       el("avgRecentYear").textContent = avg("recent_year");
     }

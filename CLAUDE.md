@@ -58,6 +58,7 @@ Desktop and web layouts must remain isolated. Do not change `pvt_prod_track.exe`
 The browser/mobile table starts with a rank column formatted as
 `current_index/filtered_total` (for example, `1/93`). The value must be computed
 from the current filtered and sorted result set, not from raw API order.
+The performance columns are ordered as recent week, recent month, YTD, and recent year.
 Rows whose manager name contains `指数` are marked with a light-blue row background,
 and the manager cell is rendered as a light-blue tag.
 In the desktop-width web view, enabling fixed ranking keeps the strategy/scale/sort
@@ -71,7 +72,7 @@ recent-week sorting, and disables fixed ranking.
 
 ## Data Notes
 
-`loadData()` keeps `Nav.nav_interval_metrics` as a server-side pivot. Base product info comes first from `Euclid.fund_basic_info`; `Nav.PendingFund`, `Nav.fof99_nav_index`, and `Nav.smw_index` are appended without deduplication. Pending rows join metrics with `fund_code = 'pending:' + PROD_CODE`; FOF99 rows join with `fund_code = 'fof99:' + register_number`; SimuWang rows join with `fund_code = 'smw:' + register_number`; formal Euclid rows keep the existing `个人净值 -> p_{fid}` / otherwise `prod_code` rule. Supplemental row scale is filled by mapping `comp_code` to `Euclid.量化私募管理人列表.登记编号` and reading `管理规模`.
+`loadData()` keeps `Nav.nav_interval_metrics` as a server-side pivot. Base product info comes first from `Euclid.fund_basic_info`; `Nav.PendingFund`, `Nav.fof99_nav_index`, `Nav.smw_index`, and `Nav.mail_nav_index` are appended without deduplication. Pending rows join metrics with `fund_code = 'pending:' + PROD_CODE`; FOF99 rows join with `fund_code = 'fof99:' + register_number`; SimuWang rows join with `fund_code = 'smw:' + register_number`; enabled Mail NAV rows with non-empty `prod_comp`, `product_key`, and `prod_type` join with `fund_code = 'mail:' + product_key`; formal Euclid rows keep the existing `个人净值 -> p_{fid}` / otherwise `prod_code` rule. Supplemental row scale is filled by mapping `comp_code` to `Euclid.量化私募管理人列表.登记编号` and reading `管理规模`.
 
 After resolving those standard metric keys, `loadData()` excludes keys explicitly marked with `is_backup = 1` in `Nav.nav_product_preferences`. The report only reads this operator-maintained preference and must not write or infer backup status.
 

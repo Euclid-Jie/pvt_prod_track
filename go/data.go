@@ -30,6 +30,7 @@ type Fund struct {
 	Scale            string `json:"scale"`
 	ScaleLevel       string `json:"scale_level"`
 	RecentWeek       string `json:"recent_week"`
+	RecentMonth      string `json:"recent_month"`
 	Ytd              string `json:"ytd"`
 	RecentYear       string `json:"recent_year"`
 	RecentYearSharpe string `json:"recent_year_sharpe"`
@@ -145,6 +146,7 @@ func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 		{navDB, "SELECT CONCAT('pending:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), prod_comp, COALESCE(ProdType, ''), '', COALESCE(comp_code, ''), '', NULL FROM PendingFund WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''"},
 		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM fof99_nav_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
 		{navDB, "SELECT CONCAT('smw:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM smw_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
+		{navDB, "SELECT CONCAT('mail:', product_key), COALESCE(product_key, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM mail_nav_index WHERE enabled = 1 AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND product_key IS NOT NULL AND TRIM(product_key) <> '' AND prod_type IS NOT NULL AND TRIM(prod_type) <> ''"},
 	}
 	for _, q := range queries {
 		rows, err := q.db.Query(q.sql)
@@ -363,6 +365,7 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 			Scale:            scale,
 			ScaleLevel:       scaleLevel,
 			RecentWeek:       fmtVal(get(code, "recent_week_return"), true),
+			RecentMonth:      fmtVal(get(code, "recent_month_return"), true),
 			Ytd:              fmtVal(get(code, "ytd_return"), true),
 			RecentYear:       fmtVal(get(code, "recent_year_return"), true),
 			RecentYearSharpe: fmtVal(get(code, "recent_year_sharpe"), false),

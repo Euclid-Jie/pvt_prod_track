@@ -1,6 +1,6 @@
 # 数据源与键名说明
 
-本文档固定 `loadData()` 当前使用的四类基础产品来源，以及它们和 `Nav.nav_interval_metrics` 的关联规则。这里的规则短期内不要改成自动猜测或按 metrics 反推产品；基础产品是否展示必须以对应基础表的准入条件为准。
+本文档固定 `loadData()` 当前使用的五类基础产品来源，以及它们和 `Nav.nav_interval_metrics` 的关联规则。这里的规则短期内不要改成自动猜测或按 metrics 反推产品；基础产品是否展示必须以对应基础表的准入条件为准。
 
 指标生成端的事实来源是 `W:\WorkSpace\nav_data_tracking\metrics\save_metrics.py` 和 `W:\WorkSpace\nav_data_tracking\nav_sources.py`。前端展示侧的基础产品来源、准入条件和 metric key 必须和这两处保持一致。
 
@@ -9,7 +9,7 @@
 `loadData()` 并发读取两类数据：
 
 1. `Nav.nav_interval_metrics`：按 `fund_code` 做服务端 pivot，生成每个产品在各区间的指标列。
-2. 基础产品信息：按顺序追加 `Euclid.fund_basic_info`、`Nav.PendingFund`、`Nav.fof99_nav_index`、`Nav.smw_index`。
+2. 基础产品信息：按顺序追加 `Euclid.fund_basic_info`、`Nav.PendingFund`、`Nav.fof99_nav_index`、`Nav.smw_index`、`Nav.mail_nav_index`。
 
 最终展示不是遍历 metrics 表，而是遍历基础产品信息。每条基础产品信息计算出一个 metric key，再到 pivot 结果中查找对应指标。非基准产品如果找不到 pivot 指标，会被过滤掉。
 
@@ -23,7 +23,7 @@
 
 ## 统一字段
 
-代码中用 `fundInfo` 承接四类来源，字段含义如下：
+代码中用 `fundInfo` 承接五类来源，字段含义如下：
 
 | `fundInfo` 字段 | 展示/关联含义 |
 |---|---|
@@ -182,6 +182,47 @@ smw:{register_number}
 
 ```text
 Nav.smw_index.comp_code
+  -> Euclid.量化私募管理人列表.登记编号
+  -> Euclid.量化私募管理人列表.管理规模
+```
+
+如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
+
+## 来源五：Nav.mail_nav_index
+
+`mail_nav_index` 是 Mail NAV 的操作者维护白名单。指标生成端在 `nav_sources.py` 中定义为 `MAIL_NAV_SOURCE`，`metric_code_prefix = 'mail:'`。当前逻辑追加在 `smw_index` 之后，不做去重。
+
+准入条件：
+
+```sql
+enabled = 1
+AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''
+AND product_key IS NOT NULL AND TRIM(product_key) <> ''
+AND prod_type IS NOT NULL AND TRIM(prod_type) <> ''
+```
+
+读取字段：
+
+| 来源列 | `fundInfo` 字段 |
+|---|---|
+| `product_key` | `ProdCode` |
+| `prod_name` | `ProdName` |
+| `prod_comp` | `ProdComp` |
+| `prod_type` | `ProdType` |
+| `comp_code` | `CompCode` |
+
+metric key 规则：
+
+```text
+mail:{product_key}
+```
+
+规模补充：
+
+`mail_nav_index` 本身没有规模字段。展示规模通过 `comp_code` 补：
+
+```text
+Nav.mail_nav_index.comp_code
   -> Euclid.量化私募管理人列表.登记编号
   -> Euclid.量化私募管理人列表.管理规模
 ```

@@ -38,6 +38,10 @@
                 <div class="hstat-value" id="avg_recent_week">—</div>
             </div>
             <div class="hstat">
+                <div class="hstat-label">近一月均值</div>
+                <div class="hstat-value" id="avg_recent_month">—</div>
+            </div>
+            <div class="hstat">
                 <div class="hstat-label">今年以来均值</div>
                 <div class="hstat-value" id="avgYtd">—</div>
             </div>
@@ -64,6 +68,7 @@
                 <label>排序</label>
                 <select id="sortSelect" onchange="sortTable()">
                     <option value="recent_week">近一周 ↓</option>
+                    <option value="recent_month">近一月 ↓</option>
                     <option value="ytd">今年以来 ↓</option>
                     <option value="recent_year">近一年 ↓</option>
                     <option value="name">产品名称</option>
@@ -85,6 +90,7 @@
                             <th>产品名称</th>
                             <th>策略类型</th>
                             <th>近一周(%)</th>
+                            <th>近一月(%)</th>
                             <th>今年以来(%)</th>
                             <th>近一年(%)</th>
                             <th>近一年夏普</th>
@@ -243,7 +249,7 @@
         tbody.innerHTML = '';
         if (!data.length) {
             const message = dataLoadMessage || '当前筛选条件下暂无数据';
-            tbody.innerHTML = `<tr><td colspan="12" style="padding:28px;color:#6b7280;text-align:center;white-space:normal;">${escapeHtml(message)}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="13" style="padding:28px;color:#6b7280;text-align:center;white-space:normal;">${escapeHtml(message)}</td></tr>`;
             return;
         }
         const fmt = v => {
@@ -267,6 +273,7 @@
                 <td class="product-name">${fund.product_name || '-'}</td>
                 <td>${fund.strategy || '-'}</td>
                 <td class="${cls(fund.recent_week)} highlight">${fmt(fund.recent_week)}</td>
+                <td class="${cls(fund.recent_month)} highlight">${fmt(fund.recent_month)}</td>
                 <td class="${cls(fund.ytd)} highlight">${fmt(fund.ytd)}</td>
                 <td class="${cls(fund.recent_year)}">${fmt(fund.recent_year)}</td>
                 <td class="${cls(fund.recent_year_sharpe)}">${fmt(fund.recent_year_sharpe)}</td>
@@ -308,6 +315,7 @@
             return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) + '%';
         };
         document.getElementById('avg_recent_week').textContent = avg('recent_week');
+        document.getElementById('avg_recent_month').textContent = avg('recent_month');
         document.getElementById('avgYtd').textContent = avg('ytd');
         document.getElementById('avg_recent_year').textContent = avg('recent_year');
     }
