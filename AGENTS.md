@@ -135,7 +135,7 @@ This key is used to look up rows in the pivot result (`pivotMap` in Go, `key` co
 | `/api/config` | GET/POST | Read/save `config.json` |
 | `/api/config/holiday` | POST | Upload holiday file (multipart) |
 | `/api/refresh` | POST | Clear cache + reload |
-| `/api/export/excel` | GET | Excel download |
+| `/api/export/excel` | GET | Excel download (one sheet per strategy; manager, scale, strategy, and interval returns only) |
 | `/api/status` | GET | `{"configured": bool}` |
 
 ## Frontend
