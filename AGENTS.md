@@ -89,7 +89,7 @@ First run without `config.json` -> settings modal auto-opens.
 
 **First API call:** `loadData()` fires concurrent queries, results cached in `dataCache` until `clearCache()`:
 
-1. **`Nav.nav_interval_metrics`** — server-side pivot: `GROUP BY fund_code` + `MAX(CASE WHEN interval_begin=? AND interval_end=? AND metric_name=? THEN metric_value END)` per interval×metric. Returns ~700 rows (one per fund) instead of ~12000 raw metric rows. `HAVING recent_week_return IS NOT NULL` filters out funds with no recent-week data. **This pivot is the critical performance design — do not replace with a flat SELECT.**
+1. **`Nav.nav_interval_metrics`** — server-side pivot: `GROUP BY fund_code, is_excess` + `MAX(CASE WHEN interval_begin=? AND interval_end=? AND metric_name=? THEN metric_value END)` per interval×metric. It reads both absolute (`is_excess=0`) and excess (`is_excess=1`) rows, returning at most one row per fund and metric mode instead of the flat metric history. `HAVING recent_week_return IS NOT NULL` filters out groups with no recent-week data. **This pivot is the critical performance design — do not replace with a flat SELECT.**
 
 2. **`Euclid.fund_basic_info`** — `(prod_code, prod_name, prod_comp, prod_type, 管理人规模, 净值来源, fid)` where `净值来源 IS NOT NULL`.
 
@@ -115,7 +115,7 @@ Detailed source contracts and key mappings are documented in `docs/data-sources.
 - `smw_index` rows -> key = `smw:{register_number}` (example: `smw:SAVW31`)
 - `mail_nav_index` rows -> key = `mail:{product_key}`
 
-This key is used to look up rows in the pivot result (`pivotMap` in Go, `key` column in Python).
+This key is used to look up rows in the absolute and excess pivot maps in Go (`key` column in Python).
 
 **Adding a new metric or interval:** In `data.go:loadData`, add an entry to the `cols` slice (name, begin, end, metric). The pivot SQL builds dynamically from `cols` — no manual SQL editing. Add the field to `Fund` struct and populate it in the `funds = append(...)` block.
 
@@ -129,7 +129,7 @@ This key is used to look up rows in the pivot result (`pivotMap` in Go, `key` co
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/data?strategy=X` | GET | Fund list, optional strategy filter |
+| `/api/data?strategy=X` | GET | Fund list with absolute/excess metrics and precise return fields used by Web sorting; optional strategy filter |
 | `/api/strategies` | GET | Distinct strategy names |
 | `/api/intervals` | GET | `week_begin/end`, `ytd_begin/end` |
 | `/api/config` | GET/POST | Read/save `config.json` |
@@ -158,7 +158,13 @@ Rows with empty scale or `-` remain visible under large/small scale filters beca
 index products may not have manager scale.
 The desktop web table heading shows the active strategy, scale, and sort order.
 Clear filters empties manager keywords, restores strategy/scale to all, selects
-recent-week sorting, and disables fixed ranking.
+recent-week sorting, and disables fixed ranking and excess mode.
+The excess checkbox always keeps the same layout slot. It is enabled only when one
+specific selected strategy has `has_excess=true`; otherwise it is unchecked and disabled.
+When enabled, it switches all displayed metrics to `is_excess=1` and excludes rows whose
+manager contains `指数` before ranking. Web sorting and summary averages use the precise
+return fields (`*_precise`) while cells remain formatted to two decimals. Excess ties use
+the corresponding precise absolute return as the secondary sort key.
 
 ## Weekly Update Workflow
 

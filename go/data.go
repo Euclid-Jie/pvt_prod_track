@@ -24,20 +24,38 @@ var strategyType = map[string]string{
 }
 
 type Fund struct {
-	Strategy         string `json:"strategy"`
-	Manager          string `json:"manager"`
-	ProductName      string `json:"product_name"`
-	Scale            string `json:"scale"`
-	ScaleLevel       string `json:"scale_level"`
-	RecentWeek       string `json:"recent_week"`
-	RecentMonth      string `json:"recent_month"`
-	Ytd              string `json:"ytd"`
-	RecentYear       string `json:"recent_year"`
-	RecentYearSharpe string `json:"recent_year_sharpe"`
-	RecentYearMdd    string `json:"recent_year_mdd"`
-	Y2025            string `json:"y2025"`
-	Y2024            string `json:"y2024"`
-	Y2023            string `json:"y2023"`
+	Strategy                 string   `json:"strategy"`
+	Manager                  string   `json:"manager"`
+	ProductName              string   `json:"product_name"`
+	Scale                    string   `json:"scale"`
+	ScaleLevel               string   `json:"scale_level"`
+	RecentWeek               string   `json:"recent_week"`
+	RecentWeekPrecise        *float64 `json:"recent_week_precise,omitempty"`
+	RecentMonth              string   `json:"recent_month"`
+	RecentMonthPrecise       *float64 `json:"recent_month_precise,omitempty"`
+	Ytd                      string   `json:"ytd"`
+	YtdPrecise               *float64 `json:"ytd_precise,omitempty"`
+	RecentYear               string   `json:"recent_year"`
+	RecentYearPrecise        *float64 `json:"recent_year_precise,omitempty"`
+	RecentYearSharpe         string   `json:"recent_year_sharpe"`
+	RecentYearMdd            string   `json:"recent_year_mdd"`
+	Y2025                    string   `json:"y2025"`
+	Y2024                    string   `json:"y2024"`
+	Y2023                    string   `json:"y2023"`
+	HasExcess                bool     `json:"has_excess"`
+	ExcessRecentWeek         string   `json:"excess_recent_week"`
+	ExcessRecentWeekPrecise  *float64 `json:"excess_recent_week_precise,omitempty"`
+	ExcessRecentMonth        string   `json:"excess_recent_month"`
+	ExcessRecentMonthPrecise *float64 `json:"excess_recent_month_precise,omitempty"`
+	ExcessYtd                string   `json:"excess_ytd"`
+	ExcessYtdPrecise         *float64 `json:"excess_ytd_precise,omitempty"`
+	ExcessRecentYear         string   `json:"excess_recent_year"`
+	ExcessRecentYearPrecise  *float64 `json:"excess_recent_year_precise,omitempty"`
+	ExcessRecentYearSharpe   string   `json:"excess_recent_year_sharpe"`
+	ExcessRecentYearMdd      string   `json:"excess_recent_year_mdd"`
+	ExcessY2025              string   `json:"excess_y2025"`
+	ExcessY2024              string   `json:"excess_y2024"`
+	ExcessY2023              string   `json:"excess_y2023"`
 }
 
 type fundInfo struct {
@@ -215,6 +233,14 @@ func fmtVal(v *float64, pct bool) string {
 	return fmt.Sprintf("%.4f", *v)
 }
 
+func precisePctVal(v *float64) *float64 {
+	if v == nil || math.IsNaN(*v) {
+		return nil
+	}
+	value := *v * 100
+	return &value
+}
+
 func pivotCol(begin, end, metric string) string {
 	return fmt.Sprintf(
 		"MAX(CASE WHEN interval_begin='%s' AND interval_end='%s' AND metric_name='%s' THEN metric_value END)",
@@ -265,14 +291,15 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 	}
 	// HAVING filters to funds that have recent_week data (the first col is always recent_week_return).
 	weekCol := colDefs[0].name
-	pivotSQL := "SELECT fund_code, " + strings.Join(selectExprs, ", ") +
+	pivotSQL := "SELECT fund_code, is_excess, " + strings.Join(selectExprs, ", ") +
 		" FROM nav_interval_metrics" +
-		" WHERE is_excess=0 AND interval_end IN (" + strings.Join(ends, ",") + ")" +
-		" GROUP BY fund_code" +
+		" WHERE is_excess IN (0,1) AND interval_end IN (" + strings.Join(ends, ",") + ")" +
+		" GROUP BY fund_code, is_excess" +
 		" HAVING `" + weekCol + "` IS NOT NULL"
 
 	type pivotRow struct {
 		fundCode string
+		isExcess bool
 		vals     []*float64
 	}
 
@@ -292,16 +319,18 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		defer rows.Close()
 		nCols := len(colDefs)
 		// dest is reused across rows; vals is allocated per row to avoid aliasing.
-		dest := make([]any, 1+nCols)
+		dest := make([]any, 2+nCols)
 		for rows.Next() {
 			var code string
+			var isExcess bool
 			vals := make([]*float64, nCols)
 			dest[0] = &code
+			dest[1] = &isExcess
 			for i := range vals {
-				dest[i+1] = &vals[i]
+				dest[i+2] = &vals[i]
 			}
 			if e := rows.Scan(dest...); e == nil {
-				pivotRows = append(pivotRows, pivotRow{code, vals})
+				pivotRows = append(pivotRows, pivotRow{code, isExcess, vals})
 			}
 		}
 		if err := rows.Err(); err != nil {
@@ -320,13 +349,18 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		return nil, errInfo
 	}
 
-	pivotMap := make(map[string][]*float64, len(pivotRows))
+	absoluteMap := make(map[string][]*float64, len(pivotRows))
+	excessMap := make(map[string][]*float64, len(pivotRows))
 	for _, pr := range pivotRows {
-		pivotMap[pr.fundCode] = pr.vals
+		if pr.isExcess {
+			excessMap[pr.fundCode] = pr.vals
+		} else {
+			absoluteMap[pr.fundCode] = pr.vals
+		}
 	}
 
-	get := func(code, colName string) *float64 {
-		vals, ok := pivotMap[code]
+	get := func(metrics map[string][]*float64, code, colName string) *float64 {
+		vals, ok := metrics[code]
 		if !ok {
 			return nil
 		}
@@ -340,7 +374,7 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 	funds := make([]Fund, 0, len(infos))
 	for _, info := range infos {
 		code := info.metricCode()
-		if info.ProdComp != "基准" && pivotMap[code] == nil {
+		if info.ProdComp != "基准" && absoluteMap[code] == nil {
 			continue
 		}
 		scale := info.Scale
@@ -358,21 +392,47 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		if strategy == "" {
 			strategy = "-"
 		}
+		absoluteRecentWeek := get(absoluteMap, code, "recent_week_return")
+		absoluteRecentMonth := get(absoluteMap, code, "recent_month_return")
+		absoluteYtd := get(absoluteMap, code, "ytd_return")
+		absoluteRecentYear := get(absoluteMap, code, "recent_year_return")
+		excessRecentWeek := get(excessMap, code, "recent_week_return")
+		excessRecentMonth := get(excessMap, code, "recent_month_return")
+		excessYtd := get(excessMap, code, "ytd_return")
+		excessRecentYear := get(excessMap, code, "recent_year_return")
 		funds = append(funds, Fund{
-			Strategy:         strategy,
-			Manager:          orDash(info.ProdComp),
-			ProductName:      orDash(info.ProdName),
-			Scale:            scale,
-			ScaleLevel:       scaleLevel,
-			RecentWeek:       fmtVal(get(code, "recent_week_return"), true),
-			RecentMonth:      fmtVal(get(code, "recent_month_return"), true),
-			Ytd:              fmtVal(get(code, "ytd_return"), true),
-			RecentYear:       fmtVal(get(code, "recent_year_return"), true),
-			RecentYearSharpe: fmtVal(get(code, "recent_year_sharpe"), false),
-			RecentYearMdd:    fmtVal(get(code, "recent_year_MDD"), true),
-			Y2025:            fmtVal(get(code, "y2025_return"), true),
-			Y2024:            fmtVal(get(code, "y2024_return"), true),
-			Y2023:            fmtVal(get(code, "y2023_return"), true),
+			Strategy:                 strategy,
+			Manager:                  orDash(info.ProdComp),
+			ProductName:              orDash(info.ProdName),
+			Scale:                    scale,
+			ScaleLevel:               scaleLevel,
+			RecentWeek:               fmtVal(absoluteRecentWeek, true),
+			RecentWeekPrecise:        precisePctVal(absoluteRecentWeek),
+			RecentMonth:              fmtVal(absoluteRecentMonth, true),
+			RecentMonthPrecise:       precisePctVal(absoluteRecentMonth),
+			Ytd:                      fmtVal(absoluteYtd, true),
+			YtdPrecise:               precisePctVal(absoluteYtd),
+			RecentYear:               fmtVal(absoluteRecentYear, true),
+			RecentYearPrecise:        precisePctVal(absoluteRecentYear),
+			RecentYearSharpe:         fmtVal(get(absoluteMap, code, "recent_year_sharpe"), false),
+			RecentYearMdd:            fmtVal(get(absoluteMap, code, "recent_year_MDD"), true),
+			Y2025:                    fmtVal(get(absoluteMap, code, "y2025_return"), true),
+			Y2024:                    fmtVal(get(absoluteMap, code, "y2024_return"), true),
+			Y2023:                    fmtVal(get(absoluteMap, code, "y2023_return"), true),
+			HasExcess:                excessMap[code] != nil,
+			ExcessRecentWeek:         fmtVal(excessRecentWeek, true),
+			ExcessRecentWeekPrecise:  precisePctVal(excessRecentWeek),
+			ExcessRecentMonth:        fmtVal(excessRecentMonth, true),
+			ExcessRecentMonthPrecise: precisePctVal(excessRecentMonth),
+			ExcessYtd:                fmtVal(excessYtd, true),
+			ExcessYtdPrecise:         precisePctVal(excessYtd),
+			ExcessRecentYear:         fmtVal(excessRecentYear, true),
+			ExcessRecentYearPrecise:  precisePctVal(excessRecentYear),
+			ExcessRecentYearSharpe:   fmtVal(get(excessMap, code, "recent_year_sharpe"), false),
+			ExcessRecentYearMdd:      fmtVal(get(excessMap, code, "recent_year_MDD"), true),
+			ExcessY2025:              fmtVal(get(excessMap, code, "y2025_return"), true),
+			ExcessY2024:              fmtVal(get(excessMap, code, "y2024_return"), true),
+			ExcessY2023:              fmtVal(get(excessMap, code, "y2023_return"), true),
 		})
 	}
 

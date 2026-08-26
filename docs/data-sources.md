@@ -8,7 +8,7 @@
 
 `loadData()` 并发读取两类数据：
 
-1. `Nav.nav_interval_metrics`：按 `fund_code` 做服务端 pivot，生成每个产品在各区间的指标列。
+1. `Nav.nav_interval_metrics`：按 `fund_code, is_excess` 做服务端 pivot，生成每个产品在绝对/超额两种口径下的各区间指标列。
 2. 基础产品信息：按顺序追加 `Euclid.fund_basic_info`、`Nav.PendingFund`、`Nav.fof99_nav_index`、`Nav.smw_index`、`Nav.mail_nav_index`。
 
 最终展示不是遍历 metrics 表，而是遍历基础产品信息。每条基础产品信息计算出一个 metric key，再到 pivot 结果中查找对应指标。非基准产品如果找不到 pivot 指标，会被过滤掉。
@@ -233,11 +233,14 @@ Nav.mail_nav_index.comp_code
 
 `Nav.nav_interval_metrics` 仍然必须使用服务端 pivot：
 
-- `GROUP BY fund_code`
+- `GROUP BY fund_code, is_excess`
+- 同时读取 `is_excess IN (0, 1)`；`0` 为产品绝对指标，`1` 为上游按策略 benchmark 计算的超额指标
 - 每个区间和指标用 `MAX(CASE WHEN ... THEN metric_value END)`
 - `HAVING recent_week_return IS NOT NULL`
 
 不要改回拉平后的 metrics 明细再在 Go 内存中 pivot。这个表的行数明显多于产品数，服务端 pivot 是当前性能设计。
+
+API 的展示字段仍格式化为两位小数，同时为近一周、近一月、YTD、近一年返回百分比单位的 `*_precise` 字段。服务版排序和平均值使用精确字段，Excel 和桌面版继续使用原展示字段。超额指标由上游生成，服务版不得用展示值自行相减计算。
 
 ## 展示过滤
 

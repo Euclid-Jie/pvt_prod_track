@@ -82,6 +82,10 @@
               <option value="recent_year">&#36817;&#19968;&#24180;</option>
               <option value="manager">&#31649;&#29702;&#20154;</option>
             </select>
+            <label id="excessToggle" class="web-excess-toggle is-disabled" title="&#24403;&#21069;&#31574;&#30053;&#26242;&#26080;&#36229;&#39069;&#25968;&#25454;" aria-disabled="true">
+              <input id="excessCheckbox" type="checkbox" disabled>
+              <span>&#36229;&#39069;</span>
+            </label>
             <div class="web-filter-actions">
               <label class="web-rank-lock">
                 <input id="fixedRankCheckbox" type="checkbox">
@@ -165,6 +169,12 @@
       const v = parseFloat(f[k]);
       return Number.isNaN(v) ? null : v;
     };
+    const isExcessMode = () => el("excessCheckbox").checked;
+    const metricKey = key => isExcessMode() ? `excess_${key}` : key;
+    const metricNumVal = (fund, key) => {
+      const precise = numVal(fund, `${metricKey(key)}_precise`);
+      return precise === null ? numVal(fund, metricKey(key)) : precise;
+    };
     async function fetchJSON(url, options) {
       const response = await fetch(url, options);
       if (response.ok) return await response.json();
@@ -214,11 +224,14 @@
     }
 
     function applyFilters() {
+      updateExcessAvailability();
       const searchTerms = el("searchInput").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
       const strategy = el("strategySelect").value;
       const scale = el("scaleSelect").value;
+      const excess = isExcessMode();
       rankingData = allFundsData.filter(fund => {
         if (strategy !== "all" && fund.strategy !== strategy) return false;
+        if (excess && (fund.manager || "").includes("\u6307\u6570")) return false;
         const hasScale = !["", "-"].includes(String(fund.scale || "").trim());
         if (hasScale && scale === "large" && fund.scale_level === "\u5c0f\u5382") return false;
         if (hasScale && scale === "small" && fund.scale_level === "\u5927\u5382") return false;
@@ -233,16 +246,34 @@
       updateStats();
     }
 
+    function updateExcessAvailability() {
+      const strategy = el("strategySelect").value;
+      const available = strategy !== "all" && allFundsData.some(fund => fund.strategy === strategy && fund.has_excess);
+      const toggle = el("excessToggle");
+      const checkbox = el("excessCheckbox");
+      checkbox.disabled = !available;
+      toggle.classList.toggle("is-disabled", !available);
+      toggle.setAttribute("aria-disabled", String(!available));
+      toggle.title = available ? "\u5207\u6362\u4e3a\u8d85\u989d\u53e3\u5f84" : "\u5f53\u524d\u7b56\u7565\u6682\u65e0\u8d85\u989d\u6570\u636e";
+      if (!available) checkbox.checked = false;
+    }
+
     function sortAndRender() {
       updateFilterSummary();
       const by = el("sortSelect").value;
       const compareFunds = (a, b) => {
         if (by === "manager") return (a.manager || "").localeCompare(b.manager || "", "zh-CN");
-        const av = numVal(a, by), bv = numVal(b, by);
+        const av = metricNumVal(a, by), bv = metricNumVal(b, by);
         if (av === null && bv === null) return 0;
         if (av === null) return 1;
         if (bv === null) return -1;
-        return bv - av;
+        if (bv !== av) return bv - av;
+        if (isExcessMode()) {
+          const absoluteA = numVal(a, `${by}_precise`) ?? numVal(a, by);
+          const absoluteB = numVal(b, `${by}_precise`) ?? numVal(b, by);
+          if (absoluteA !== null && absoluteB !== null && absoluteB !== absoluteA) return absoluteB - absoluteA;
+        }
+        return (a.manager || "").localeCompare(b.manager || "", "zh-CN");
       };
       const sorted = [...filteredData].sort(compareFunds);
       if (fixedRankMedia.matches && el("fixedRankCheckbox").checked) {
@@ -260,7 +291,8 @@
       const sort = el("sortSelect").selectedOptions[0]?.textContent || "\u8fd1\u4e00\u5468";
       const strategyText = strategy === "\u5168\u90e8" ? "\u5168\u90e8\u7b56\u7565" : strategy;
       const scaleText = scale === "\u5168\u90e8" ? "\u5168\u90e8\u7ba1\u7406\u4eba\u89c4\u6a21" : `\u7ba1\u7406\u4eba\u89c4\u6a21${scale}`;
-      el("filterSummary").textContent = `\u5f53\u524d\uff1a${strategyText} \u00b7 ${scaleText} \u00b7 ${sort}\u6392\u5e8f`;
+      const metricMode = isExcessMode() ? " \u00b7 \u8d85\u989d\u53e3\u5f84" : "";
+      el("filterSummary").textContent = `\u5f53\u524d\uff1a${strategyText} \u00b7 ${scaleText} \u00b7 ${sort}\u6392\u5e8f${metricMode}`;
     }
 
     function clearFilters() {
@@ -269,6 +301,7 @@
       el("scaleSelect").value = "all";
       el("sortSelect").value = "recent_week";
       el("fixedRankCheckbox").checked = false;
+      el("excessCheckbox").checked = false;
       applyFilters();
     }
 
@@ -292,15 +325,15 @@
           <td data-label="\u7ba1\u7406\u4eba" class="col-manager"><span class="${managerClass}">${escapeHtml(manager)}</span></td>
           <td data-label="\u89c4\u6a21" class="col-scale">${escapeHtml(fund.scale || "-")}</td>
           <td data-label="\u7b56\u7565" class="col-strategy">${escapeHtml(fund.strategy || "-")}</td>
-          <td data-label="\u672c\u5468" class="${cls(fund.recent_week)} col-week">${fmt(fund.recent_week)}</td>
-          <td data-label="\u8fd1\u4e00\u6708" class="${cls(fund.recent_month)} col-month">${fmt(fund.recent_month)}</td>
-          <td data-label="YTD" class="${cls(fund.ytd)} col-ytd">${fmt(fund.ytd)}</td>
-          <td data-label="\u8fd1\u4e00\u5e74" class="${cls(fund.recent_year)} web-desktop-col">${fmt(fund.recent_year)}</td>
-          <td data-label="\u590f\u666e" class="${cls(fund.recent_year_sharpe)} web-desktop-col">${fmt(fund.recent_year_sharpe)}</td>
-          <td data-label="\u56de\u64a4" class="${cls(fund.recent_year_mdd, true)} web-desktop-col">${fmt(fund.recent_year_mdd)}</td>
-          <td data-label="2025" class="${cls(fund.y2025)} web-desktop-col">${fmt(fund.y2025)}</td>
-          <td data-label="2024" class="${cls(fund.y2024)} web-desktop-col">${fmt(fund.y2024)}</td>
-          <td data-label="2023" class="${cls(fund.y2023)} web-desktop-col">${fmt(fund.y2023)}</td>
+          <td data-label="\u672c\u5468" class="${cls(fund[metricKey("recent_week")])} col-week">${fmt(fund[metricKey("recent_week")])}</td>
+          <td data-label="\u8fd1\u4e00\u6708" class="${cls(fund[metricKey("recent_month")])} col-month">${fmt(fund[metricKey("recent_month")])}</td>
+          <td data-label="YTD" class="${cls(fund[metricKey("ytd")])} col-ytd">${fmt(fund[metricKey("ytd")])}</td>
+          <td data-label="\u8fd1\u4e00\u5e74" class="${cls(fund[metricKey("recent_year")])} web-desktop-col">${fmt(fund[metricKey("recent_year")])}</td>
+          <td data-label="\u590f\u666e" class="${cls(fund[metricKey("recent_year_sharpe")])} web-desktop-col">${fmt(fund[metricKey("recent_year_sharpe")])}</td>
+          <td data-label="\u56de\u64a4" class="${cls(fund[metricKey("recent_year_mdd")], true)} web-desktop-col">${fmt(fund[metricKey("recent_year_mdd")])}</td>
+          <td data-label="2025" class="${cls(fund[metricKey("y2025")])} web-desktop-col">${fmt(fund[metricKey("y2025")])}</td>
+          <td data-label="2024" class="${cls(fund[metricKey("y2024")])} web-desktop-col">${fmt(fund[metricKey("y2024")])}</td>
+          <td data-label="2023" class="${cls(fund[metricKey("y2023")])} web-desktop-col">${fmt(fund[metricKey("y2023")])}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -311,7 +344,7 @@
       const d = filteredData.filter(f => f.manager !== "\u57fa\u51c6");
       el("totalFunds").textContent = d.length;
       const avg = key => {
-        const vals = d.map(f => parseFloat(f[key])).filter(v => !Number.isNaN(v));
+        const vals = d.map(f => metricNumVal(f, key)).filter(v => v !== null);
         if (!vals.length) return "-";
         return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) + "%";
       };
@@ -330,6 +363,7 @@
     el("scaleSelect").addEventListener("change", applyFilters);
     el("sortSelect").addEventListener("change", sortAndRender);
     el("fixedRankCheckbox").addEventListener("change", sortAndRender);
+    el("excessCheckbox").addEventListener("change", applyFilters);
     el("clearFiltersBtn").addEventListener("click", clearFilters);
     fixedRankMedia.addEventListener("change", sortAndRender);
     el("refreshBtn").addEventListener("click", async () => {

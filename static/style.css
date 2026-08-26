@@ -529,7 +529,7 @@ tbody tr:hover { background: var(--highlight-bg); }
 
 .web-sort-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 54px auto;
     gap: 10px;
     align-items: center;
 }
@@ -540,7 +540,8 @@ tbody tr:hover { background: var(--highlight-bg); }
     gap: 8px;
 }
 
-.web-rank-lock {
+.web-rank-lock,
+.web-excess-toggle {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -549,7 +550,12 @@ tbody tr:hover { background: var(--highlight-bg); }
     white-space: nowrap;
 }
 
-.web-rank-lock input {
+.web-excess-toggle {
+    min-width: 54px;
+}
+
+.web-rank-lock input,
+.web-excess-toggle input {
     width: 16px;
     height: 16px;
     margin: 0;
@@ -557,6 +563,15 @@ tbody tr:hover { background: var(--highlight-bg); }
     accent-color: var(--web-accent);
     box-shadow: none;
     cursor: pointer;
+}
+
+.web-excess-toggle.is-disabled {
+    cursor: not-allowed;
+    opacity: .45;
+}
+
+.web-excess-toggle.is-disabled input {
+    cursor: not-allowed;
 }
 
 .web-clear-filters {
