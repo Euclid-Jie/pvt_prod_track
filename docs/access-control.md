@@ -24,7 +24,7 @@
 当前请求路径为：
 
 ```text
-访客 -> Nginx :80/:443 -> FRPS 127.0.0.1:15003 -> FRPC -> 本机 127.0.0.1:5003
+访客 -> Nginx :80/:443 -> FRPS 127.0.0.1:25003 -> FRPC -> 本机 127.0.0.1:5003
 ```
 
 Nginx 使用 `docs/nginx-pvt-prod-track.conf`，覆盖而不是沿用访客传入的真实 IP 请求头：
@@ -32,7 +32,7 @@ Nginx 使用 `docs/nginx-pvt-prod-track.conf`，覆盖而不是沿用访客传�
 - `X-Forwarded-For: $remote_addr`
 - `X-Forwarded-Proto: $scheme`
 
-云安全组应开放公网入口 80/443，并关闭公网对 15003 的直接访问。Nginx 从服务器回环地址访问 15003，不受公网入站规则影响。直接暴露 15003 会绕过 Nginx，使应用再次只能看到 FRPC 的 `127.0.0.1`。
+周报的 FRP 内部端口已迁移到 25003，且不应对公网开放。云安全组开放 80/443 作为正式入口；旧端口 15003 由 Nginx 提供迁移引导页，不再直接连接 FRPS。Nginx 从服务器回环地址访问 25003，不受公网入站规则影响。
 
 当前 HTTP 入口可用于验证，正式使用应配置域名和 HTTPS。HTTPS 生效后，`X-Forwarded-Proto` 会使设备 Cookie 自动带上 `Secure` 属性。
 

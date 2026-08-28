@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="8;url=http://120.48.74.113/">
+  <title>访问地址已更新 · 私募产品周报</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2328;
+      background: #f6f8fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: linear-gradient(180deg, rgba(9, 105, 218, 0.07), transparent 360px), #f6f8fa;
+    }
+    main {
+      width: min(560px, 100%);
+      padding: 42px;
+      border: 1px solid #d0d7de;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 18px 50px rgba(31, 35, 40, 0.1);
+    }
+    .mark {
+      width: 44px;
+      height: 5px;
+      margin-bottom: 28px;
+      border-radius: 999px;
+      background: #0969da;
+    }
+    p { margin: 0; color: #57606a; line-height: 1.75; }
+    .kicker { color: #0969da; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; }
+    h1 { margin: 10px 0 16px; font-size: clamp(28px, 6vw, 38px); line-height: 1.18; }
+    .new-address {
+      margin: 24px 0;
+      padding: 14px 16px;
+      border: 1px solid #d8dee4;
+      border-radius: 7px;
+      color: #24292f;
+      background: #f6f8fa;
+      font-family: "Cascadia Mono", Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+    a {
+      display: inline-flex;
+      justify-content: center;
+      width: 100%;
+      min-height: 44px;
+      align-items: center;
+      border-radius: 7px;
+      color: #fff;
+      background: #0969da;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    a:hover { background: #0759ba; }
+    .countdown { margin-top: 16px; font-size: 12px; text-align: center; }
+    @media (max-width: 520px) { main { padding: 30px 24px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true"></div>
+    <p class="kicker">PRIVATE FUND WEEKLY</p>
+    <h1>访问地址已更新</h1>
+    <p>私募产品周报已迁移到新的统一入口。请使用下方地址，并更新原有书签。</p>
+    <div class="new-address">http://120.48.74.113/</div>
+    <a href="http://120.48.74.113/">立即前往新地址</a>
+    <p class="countdown"><span id="seconds">8</span> 秒后自动跳转</p>
+  </main>
+  <script>
+    let seconds = 8;
+    const node = document.getElementById("seconds");
+    window.setInterval(() => {
+      seconds = Math.max(0, seconds - 1);
+      node.textContent = seconds;
+    }, 1000);
+  </script>
+</body>
+</html>
