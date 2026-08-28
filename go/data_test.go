@@ -6,12 +6,13 @@ func TestExcludeBackupFundInfosUsesStandardMetricCode(t *testing.T) {
 	infos := []fundInfo{
 		{ProdCode: "SXN345", ProdName: "primary"},
 		{ProdCode: "SBQS25", ProdName: "backup", MetricCode: "fof99:SBQS25"},
+		{ProdCode: "AP-A", ProdName: "alpha plus", MetricCode: "alpha_plus:AP-A"},
 		{ProdCode: "MAIL-A", ProdName: "mail", MetricCode: "mail:MAIL-A"},
 	}
 
 	filtered := excludeBackupFundInfos(
 		infos,
-		map[string]struct{}{"fof99:SBQS25": {}, "mail:MAIL-A": {}},
+		map[string]struct{}{"fof99:SBQS25": {}, "alpha_plus:AP-A": {}, "mail:MAIL-A": {}},
 	)
 
 	if len(filtered) != 1 {

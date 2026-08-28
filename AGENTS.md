@@ -95,15 +95,17 @@ First run without `config.json` -> settings modal auto-opens.
 
 3. **`Nav.PendingFund`** — supplemental product info for rows where `prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''`. It is appended after `fund_basic_info` without deduplication.
 
-4. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `PendingFund` without deduplication.
+4. **`Nav.AlphaPlusFund`** — supplemental Alpha Plus product info for rows with non-empty `PROD_CODE`. It is appended after `PendingFund` without deduplication.
 
-5. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
+5. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `AlphaPlusFund` without deduplication.
 
-6. **`Nav.mail_nav_index`** — supplemental Mail NAV product info for enabled rows with non-empty `prod_comp`, `product_key`, and `prod_type`. It is appended after `smw_index` without deduplication.
+6. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
 
-7. **`Nav.nav_product_preferences`** — read `fund_code` rows where `is_backup = 1` and exclude those products after resolving each source's standard metric key. This is an explicit operator preference, not automatic deduplication. The report must never write or infer backup status.
+7. **`Nav.mail_nav_index`** — supplemental Mail NAV product info for enabled rows with non-empty `prod_comp`, `product_key`, and `prod_type`. It is appended after `smw_index` without deduplication.
 
-Supplemental rows from `PendingFund`, `fof99_nav_index`, `smw_index`, and `mail_nav_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`.
+8. **`Nav.nav_product_preferences`** — read `fund_code` rows where `is_backup = 1` and exclude those products after resolving each source's standard metric key. This is an explicit operator preference, not automatic deduplication. The report must never write or infer backup status.
+
+Supplemental rows from `PendingFund`, `fof99_nav_index`, `smw_index`, and `mail_nav_index` do not carry scale directly. Their `comp_code` maps to `Euclid.量化私募管理人列表.登记编号`; display scale comes from `Euclid.量化私募管理人列表.管理规模`. Alpha Plus instead maps `Nav.AlphaPlusFund.prod_comp` to `Euclid.company_scale.prod_comp` and reads `Euclid.company_scale.管理规模`.
 
 Detailed source contracts and key mappings are documented in `docs/data-sources.md`.
 
@@ -111,6 +113,7 @@ Detailed source contracts and key mappings are documented in `docs/data-sources.
 - `净值来源 == "个人净值"` -> key = `p_{fid}`
 - ordinary `fund_basic_info` rows -> key = `prod_code`
 - `PendingFund` rows -> key = `pending:{PROD_CODE}` (example: `pending:VU448B`)
+- `AlphaPlusFund` rows -> key = `alpha_plus:{PROD_CODE}`
 - `fof99_nav_index` rows -> key = `fof99:{register_number}` (example: `fof99:SAHC27`)
 - `smw_index` rows -> key = `smw:{register_number}` (example: `smw:SAVW31`)
 - `mail_nav_index` rows -> key = `mail:{product_key}`

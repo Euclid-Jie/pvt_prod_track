@@ -1,6 +1,6 @@
 # 数据源与键名说明
 
-本文档固定 `loadData()` 当前使用的五类基础产品来源，以及它们和 `Nav.nav_interval_metrics` 的关联规则。这里的规则短期内不要改成自动猜测或按 metrics 反推产品；基础产品是否展示必须以对应基础表的准入条件为准。
+本文档固定 `loadData()` 当前使用的六类基础产品来源，以及它们和 `Nav.nav_interval_metrics` 的关联规则。这里的规则短期内不要改成自动猜测或按 metrics 反推产品；基础产品是否展示必须以对应基础表的准入条件为准。
 
 指标生成端的事实来源是 `W:\WorkSpace\nav_data_tracking\metrics\save_metrics.py` 和 `W:\WorkSpace\nav_data_tracking\nav_sources.py`。前端展示侧的基础产品来源、准入条件和 metric key 必须和这两处保持一致。
 
@@ -9,7 +9,7 @@
 `loadData()` 并发读取两类数据：
 
 1. `Nav.nav_interval_metrics`：按 `fund_code, is_excess` 做服务端 pivot，生成每个产品在绝对/超额两种口径下的各区间指标列。
-2. 基础产品信息：按顺序追加 `Euclid.fund_basic_info`、`Nav.PendingFund`、`Nav.fof99_nav_index`、`Nav.smw_index`、`Nav.mail_nav_index`。
+2. 基础产品信息：按顺序追加 `Euclid.fund_basic_info`、`Nav.PendingFund`、`Nav.AlphaPlusFund`、`Nav.fof99_nav_index`、`Nav.smw_index`、`Nav.mail_nav_index`。
 
 最终展示不是遍历 metrics 表，而是遍历基础产品信息。每条基础产品信息计算出一个 metric key，再到 pivot 结果中查找对应指标。非基准产品如果找不到 pivot 指标，会被过滤掉。
 
@@ -23,7 +23,7 @@
 
 ## 统一字段
 
-代码中用 `fundInfo` 承接五类来源，字段含义如下：
+代码中用 `fundInfo` 承接六类来源，字段含义如下：
 
 | `fundInfo` 字段 | 展示/关联含义 |
 |---|---|
@@ -33,7 +33,7 @@
 | `ProdComp` | 展示为管理人。 |
 | `ProdType` | 先映射 `strategyType`，再展示为策略类型。 |
 | `Scale` | 展示为规模，并用于 `ScaleLevel`。 |
-| `CompCode` | 管理人登记编号，仅用于补充来源补规模。 |
+| `CompCode` | 管理人登记编号，用于 Alpha Plus 以外的补充来源补规模。 |
 | `NavSource` | `Euclid.fund_basic_info.净值来源`，用于识别个人净值产品。 |
 | `Fid` | `Euclid.fund_basic_info.fid`，用于个人净值产品 key。 |
 
@@ -106,7 +106,43 @@ Nav.PendingFund.comp_code
 
 如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
 
-## 来源三：Nav.fof99_nav_index
+## 来源三：Nav.AlphaPlusFund
+
+`AlphaPlusFund` 是 Alpha Plus 产品补充来源。管理人字段可以为空，产品准入只要求 `PROD_CODE` 非空。
+
+准入条件：
+
+```sql
+PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''
+```
+
+读取字段：
+
+| 来源列 | `fundInfo` 字段 |
+|---|---|
+| `PROD_CODE` | `ProdCode` |
+| `PROD_NAME` | `ProdName` |
+| `prod_comp` | `ProdComp` |
+| `STRATEGY_TYPE` | `ProdType` |
+| `comp_code` | `CompCode` |
+
+metric key 规则：
+
+```text
+alpha_plus:{PROD_CODE}
+```
+
+规模补充：
+
+```text
+Nav.AlphaPlusFund.prod_comp
+  -> Euclid.company_scale.prod_comp
+  -> Euclid.company_scale.管理规模
+```
+
+如果 `prod_comp` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
+
+## 来源四：Nav.fof99_nav_index
 
 `fof99_nav_index` 是 FOF99 指数产品补充来源。当前逻辑直接追加，不做去重。
 
@@ -147,7 +183,7 @@ Nav.fof99_nav_index.comp_code
 
 如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
 
-## 来源四：Nav.smw_index
+## 来源五：Nav.smw_index
 
 `smw_index` 是私募排排网 SimuWang 产品补充来源。指标生成端在 `nav_sources.py` 中定义为 `SIMUWANG_SOURCE`，`metric_code_prefix = 'smw:'`。当前逻辑直接追加，不做去重。
 
@@ -188,7 +224,7 @@ Nav.smw_index.comp_code
 
 如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
 
-## 来源五：Nav.mail_nav_index
+## 来源六：Nav.mail_nav_index
 
 `mail_nav_index` 是 Mail NAV 的操作者维护白名单。指标生成端在 `nav_sources.py` 中定义为 `MAIL_NAV_SOURCE`，`metric_code_prefix = 'mail:'`。当前逻辑追加在 `smw_index` 之后，不做去重。
 
@@ -259,6 +295,6 @@ API 的展示字段仍格式化为两位小数，同时为近一周、近一月�
 1. 基础来源是否仍按自身准入条件控制展示。
 2. metric key 是否和 `nav_data_tracking\nav_sources.py` 的 `metric_code_prefix` 完全一致。
 3. metric key 是否和 `Nav.nav_interval_metrics.fund_code` 完全一致。
-4. 补充来源是否仍通过 `comp_code -> 登记编号 -> 管理规模` 补规模。
+4. PendingFund、FOF99、SimuWang、Mail NAV 是否仍通过 `comp_code -> 登记编号 -> 管理规模` 补规模，Alpha Plus 是否仍通过 `prod_comp -> company_scale.prod_comp -> 管理规模` 补规模。
 5. 是否无意加入去重、覆盖、按 metrics 反推基础产品的逻辑。
 6. `go test ./...` 是否通过。

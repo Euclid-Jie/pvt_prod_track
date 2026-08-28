@@ -57,8 +57,8 @@ go build -o ..\pvt_prod_track_debug.exe .
 - 表格继续显示两位小数，但 Web 排序和顶部平均值使用 API 返回的高精度收益字段；超额精确值相同时，以绝对收益精确值作为次级排序。
 - 服务版按管理人规模筛选时，规模为空或 `-` 的行始终保留，用于展示没有规模字段的指数类产品。
 - “产品明细”下方会显示当前策略、管理人规模、排序方式和超额口径；“清空条件”会清空管理人关键词、恢复全部策略和规模、切回近一周排序，并取消固定排名和超额。
-- 数据层以 `Euclid.fund_basic_info` 为主，依次追加 `Nav.PendingFund`、`Nav.fof99_nav_index`、`Nav.smw_index` 与 `Nav.mail_nav_index` 作为补充来源，不做去重。
-- 补充产品在 `Nav.nav_interval_metrics` 中分别使用 `pending:{PROD_CODE}`、`fof99:{register_number}`、`smw:{register_number}`、`mail:{product_key}` 作为 `fund_code`。
+- 数据层以 `Euclid.fund_basic_info` 为主，依次追加 `Nav.PendingFund`、`Nav.AlphaPlusFund`、`Nav.fof99_nav_index`、`Nav.smw_index` 与 `Nav.mail_nav_index` 作为补充来源，不做去重。
+- 补充产品在 `Nav.nav_interval_metrics` 中分别使用 `pending:{PROD_CODE}`、`alpha_plus:{PROD_CODE}`、`fof99:{register_number}`、`smw:{register_number}`、`mail:{product_key}` 作为 `fund_code`。
 - `Nav.nav_product_preferences.is_backup = 1` 的标准 `fund_code` 不进入周报展示和导出；该标记由数据库管理员人工维护，周报只读不写。
-- 补充产品（包括 Mail NAV）规模通过 `comp_code` 关联 `Euclid.量化私募管理人列表.登记编号` 后读取 `管理规模`。
+- PendingFund、FOF99、SimuWang 与 Mail NAV 通过 `comp_code` 关联 `Euclid.量化私募管理人列表.登记编号` 后读取规模；Alpha Plus 通过 `prod_comp` 关联 `Euclid.company_scale.prod_comp` 后读取 `管理规模`。
 - 详细数据源、键名和规模补充规则见 [docs/data-sources.md](docs/data-sources.md)。
