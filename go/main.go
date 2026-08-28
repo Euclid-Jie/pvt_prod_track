@@ -76,7 +76,8 @@ func resolveDataDir(exePath string) string {
 }
 
 func main() {
-	listenAddr := flag.String("listen", "0.0.0.0:5003", "listen address for service mode")
+	listenAddr := flag.String("listen", "127.0.0.1:5003", "listen address for service mode")
+	resetAdmin := flag.Bool("reset-admin", false, "reset the web service administrator password")
 	flag.Parse()
 
 	exePath, _ := os.Executable()
@@ -98,7 +99,11 @@ func main() {
 	}
 
 	if isWebServiceExe(exePath) {
-		startServiceServer(*listenAddr)
+		access, err := newAccessControl(dataDir, *resetAdmin)
+		if err != nil {
+			log.Fatal(err)
+		}
+		startServiceServer(*listenAddr, access)
 		return
 	}
 	startDesktopApp()
@@ -134,9 +139,8 @@ func startDesktopApp() {
 	w.Run()
 }
 
-func startServiceServer(addr string) {
-	mux := newAppMux("assets/templates/service.html")
-	srv := &http.Server{Addr: addr, Handler: mux}
+func startServiceServer(addr string, access *accessControl) {
+	srv := &http.Server{Addr: addr, Handler: newServiceMux(access)}
 	log.Printf("service server listening on http://%s", addr)
 	log.Fatal(srv.ListenAndServe())
 }

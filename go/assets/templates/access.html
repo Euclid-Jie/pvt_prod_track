@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>申请访问 · 私募产品周报</title>
+  <link rel="icon" href="/icon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="web-mode access-body">
+  <header class="access-topbar">
+    <a class="access-brand" href="/access" aria-label="私募产品周报访问申请">
+      <span class="web-mark"></span>
+      <span>
+        <strong>私募产品周报</strong>
+        <small>ACCESS REGISTRY</small>
+      </span>
+    </a>
+    <span class="access-security">受控访问</span>
+  </header>
+
+  <main class="access-shell">
+    <section class="access-ledger" aria-labelledby="accessTitle">
+      <div class="access-intro">
+        <p class="access-kicker">受限数据服务</p>
+        <h1 id="accessTitle">先登记，再进入周报</h1>
+        <p class="access-lead">此页面仅向已批准的设备或 IP 开放。填写访问用途后，管理员会在本地完成审核。</p>
+
+        <div class="access-status-track" aria-label="申请流程">
+          <div class="access-track-step is-active" id="trackIdentity">
+            <span>1</span>
+            <div><strong>识别设备</strong><small>已生成安全设备凭证</small></div>
+          </div>
+          <div class="access-track-step" id="trackReview">
+            <span>2</span>
+            <div><strong>提交申请</strong><small id="reviewHint">等待填写访问说明</small></div>
+          </div>
+          <div class="access-track-step" id="trackAccess">
+            <span>3</span>
+            <div><strong>获得访问</strong><small>批准后刷新即可进入</small></div>
+          </div>
+        </div>
+
+        <dl class="access-identity" aria-label="当前访问身份">
+          <div><dt>设备编号</dt><dd id="deviceId">识别中…</dd></div>
+          <div><dt>当前 IP</dt><dd id="clientIp">识别中…</dd></div>
+        </dl>
+      </div>
+
+      <div class="access-form-panel">
+        <div id="accessNotice" class="access-notice" role="status" aria-live="polite" hidden></div>
+        <div class="access-form-head">
+          <p class="access-kicker">访问留言</p>
+          <h2 id="formTitle">提交访问申请</h2>
+          <p id="formDescription">不同浏览器会被识别为不同设备，需要分别提交申请。提交后请联系“川分-杰瑞”进行审批。</p>
+        </div>
+
+        <form id="applicationForm" class="access-form">
+          <label>
+            <span>称呼 <b aria-hidden="true">*</b></span>
+            <input id="nameInput" name="name" maxlength="80" autocomplete="name" required placeholder="你的姓名或团队名称">
+          </label>
+          <label>
+            <span>联系方式 <em>选填</em></span>
+            <input id="contactInput" name="contact" maxlength="160" autocomplete="email" placeholder="邮箱、微信或其他联系方式">
+          </label>
+          <label>
+            <span>留言 <b aria-hidden="true">*</b></span>
+            <textarea id="messageInput" name="message" maxlength="1000" rows="6" required placeholder="简要说明访问用途"></textarea>
+            <small><span id="messageCount">0</span>/1000</small>
+          </label>
+          <button id="submitButton" class="access-primary" type="submit">提交申请</button>
+        </form>
+
+        <div id="submittedState" class="access-submitted" hidden>
+          <div class="access-stamp" id="statusStamp">待审核</div>
+          <h3 id="submittedTitle">申请已送达</h3>
+          <p id="submittedText">请联系“川分-杰瑞”进行审批，批准后重新打开或刷新此页面即可进入周报。</p>
+          <button id="checkButton" class="access-primary" type="button">检查审批状态</button>
+          <button id="reapplyButton" class="access-secondary" type="button" hidden>重新申请</button>
+        </div>
+      </div>
+    </section>
+    <p class="access-footnote">设备编号仅用于本服务的访问控制，不读取硬件序列号或浏览器历史。</p>
+  </main>
+
+  <script>
+    const el = id => document.getElementById(id);
+
+    async function api(url, options = {}) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || `请求失败 (${response.status})`);
+      return data;
+    }
+
+    function setNotice(message, kind = "info") {
+      const notice = el("accessNotice");
+      notice.textContent = message;
+      notice.className = `access-notice is-${kind}`;
+      notice.hidden = !message;
+    }
+
+    function showApplication(application) {
+      const status = application?.status || "";
+      const pending = status === "pending";
+      const approved = status === "approved";
+      const rejected = status === "rejected";
+      const revoked = status === "revoked";
+      el("applicationForm").hidden = pending || approved || rejected || revoked;
+      el("submittedState").hidden = !(pending || approved || rejected || revoked);
+      el("reapplyButton").hidden = !(rejected || revoked);
+      el("checkButton").hidden = approved;
+      el("trackReview").classList.toggle("is-active", pending);
+      el("trackReview").classList.toggle("is-complete", approved || rejected);
+      el("trackAccess").classList.toggle("is-complete", approved);
+
+      if (pending) {
+        el("reviewHint").textContent = "申请已提交，等待管理员处理";
+        el("statusStamp").textContent = "待审核";
+        el("statusStamp").className = "access-stamp is-pending";
+        el("submittedTitle").textContent = "申请已送达";
+        el("submittedText").textContent = "请联系“川分-杰瑞”进行审批，批准后重新打开或刷新此页面即可进入周报。";
+      } else if (approved) {
+        el("reviewHint").textContent = "管理员已批准";
+        el("statusStamp").textContent = "已批准";
+        el("statusStamp").className = "access-stamp is-approved";
+        el("submittedTitle").textContent = "访问权限已生效";
+        el("submittedText").textContent = "正在进入私募产品周报。";
+        window.setTimeout(() => window.location.replace("/"), 450);
+      } else if (rejected) {
+        el("reviewHint").textContent = "本次申请未获批准";
+        el("statusStamp").textContent = "未批准";
+        el("statusStamp").className = "access-stamp is-rejected";
+        el("submittedTitle").textContent = "本次申请未获批准";
+        el("submittedText").textContent = "如访问用途发生变化，可以补充说明后重新申请。";
+      } else if (revoked) {
+        el("reviewHint").textContent = "原有权限已被撤销";
+        el("statusStamp").textContent = "已撤销";
+        el("statusStamp").className = "access-stamp is-rejected";
+        el("submittedTitle").textContent = "访问权限已撤销";
+        el("submittedText").textContent = "如仍需查看周报，请补充当前用途后重新申请。";
+      }
+    }
+
+    async function loadStatus() {
+      el("checkButton").disabled = true;
+      try {
+        const status = await api("/api/access/status");
+        el("deviceId").textContent = status.device_id || "-";
+        el("clientIp").textContent = status.ip || "-";
+        if (status.allowed) {
+          window.location.replace("/");
+          return;
+        }
+        showApplication(status.application);
+      } catch (error) {
+        setNotice(error.message, "error");
+      } finally {
+        el("checkButton").disabled = false;
+      }
+    }
+
+    el("messageInput").addEventListener("input", event => {
+      el("messageCount").textContent = event.target.value.length;
+    });
+
+    el("applicationForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      setNotice("");
+      el("submitButton").disabled = true;
+      el("submitButton").textContent = "正在提交…";
+      try {
+        const result = await api("/api/access/applications", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            name: el("nameInput").value,
+            contact: el("contactInput").value,
+            message: el("messageInput").value
+          })
+        });
+        showApplication(result.application);
+      } catch (error) {
+        setNotice(error.message, "error");
+      } finally {
+        el("submitButton").disabled = false;
+        el("submitButton").textContent = "提交申请";
+      }
+    });
+
+    el("checkButton").addEventListener("click", loadStatus);
+    el("reapplyButton").addEventListener("click", () => {
+      el("submittedState").hidden = true;
+      el("applicationForm").hidden = false;
+      el("messageInput").focus();
+    });
+    document.addEventListener("DOMContentLoaded", loadStatus);
+  </script>
+</body>
+</html>

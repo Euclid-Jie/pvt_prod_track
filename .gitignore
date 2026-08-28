@@ -3,5 +3,7 @@
 __pycache__
 .env
 config.json
+access_control.json
+access_control.json.bak
 *.exe
 .claude/

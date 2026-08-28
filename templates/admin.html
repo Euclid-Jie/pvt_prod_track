@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>访问管理 · 私募产品周报</title>
+  <link rel="icon" href="/icon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="web-mode admin-body">
+  <header class="admin-topbar">
+    <div class="access-brand">
+      <span class="web-mark"></span>
+      <span><strong>访问管理</strong><small>LOCAL CONTROL DESK</small></span>
+    </div>
+    <div id="adminActions" class="admin-top-actions" hidden>
+      <a class="access-secondary is-link" href="/">打开周报</a>
+      <button id="logoutButton" class="access-secondary" type="button">退出登录</button>
+    </div>
+  </header>
+
+  <main class="admin-shell">
+    <div id="adminNotice" class="access-notice" role="status" aria-live="polite" hidden></div>
+
+    <section id="setupView" class="admin-auth-card" hidden>
+      <p class="access-kicker">首次设置</p>
+      <h1>创建管理密码</h1>
+      <p>从 Web 服务启动窗口复制一次性口令。完成设置后，该口令立即失效。</p>
+      <form id="setupForm" class="access-form">
+        <label><span>一次性设置口令</span><input id="setupToken" autocomplete="one-time-code" required></label>
+        <label><span>管理密码</span><input id="setupPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+        <label><span>确认管理密码</span><input id="setupPasswordConfirm" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+        <button class="access-primary" type="submit">创建管理密码</button>
+      </form>
+    </section>
+
+    <section id="loginView" class="admin-auth-card" hidden>
+      <p class="access-kicker">本机管理</p>
+      <h1>登录访问管理</h1>
+      <p>管理入口仅接受当前服务端口的本机直接访问。</p>
+      <form id="loginForm" class="access-form">
+        <label><span>管理密码</span><input id="loginPassword" type="password" maxlength="128" autocomplete="current-password" required autofocus></label>
+        <button class="access-primary" type="submit">登录</button>
+      </form>
+    </section>
+
+    <section id="dashboardView" hidden>
+      <div class="admin-heading">
+        <div><p class="access-kicker">访问登记簿</p><h1>申请与白名单</h1></div>
+        <button id="refreshAdminButton" class="access-secondary" type="button">刷新记录</button>
+      </div>
+
+      <div class="admin-stats" aria-label="访问统计">
+        <article><span>待审批</span><strong id="pendingCount">0</strong></article>
+        <article><span>有效白名单</span><strong id="activeAllowCount">0</strong></article>
+        <article><span>历史申请</span><strong id="historyCount">0</strong></article>
+      </div>
+
+      <nav class="admin-tabs" aria-label="管理栏目">
+        <button class="is-active" data-tab="applications" type="button">申请记录</button>
+        <button data-tab="allowlist" type="button">白名单</button>
+        <button data-tab="security" type="button">安全设置</button>
+      </nav>
+
+      <section id="applicationsTab" class="admin-panel">
+        <div class="admin-panel-head">
+          <div><h2>申请记录</h2><p>批准设备、IP，或同时批准两者。</p></div>
+          <div class="admin-filters">
+            <label class="admin-filter"><span>姓名/团队</span><input id="applicationSearch" type="search" maxlength="80" autocomplete="off" placeholder="输入姓名或团队名"></label>
+            <label class="admin-filter"><span>状态</span><select id="statusFilter"><option value="all">全部</option><option value="pending">待审批</option><option value="approved">已批准</option><option value="rejected">已拒绝</option></select></label>
+          </div>
+        </div>
+        <div id="applicationList" class="admin-record-list"></div>
+      </section>
+
+      <section id="allowlistTab" class="admin-panel" hidden>
+        <div class="admin-panel-head"><div><h2>白名单</h2><p>撤销后，对应设备或 IP 会立即失去访问权限。</p></div></div>
+        <div id="allowlistList" class="admin-record-list"></div>
+      </section>
+
+      <section id="securityTab" class="admin-panel" hidden>
+        <div class="admin-panel-head"><div><h2>修改管理密码</h2><p>修改成功后，所有管理会话都会退出。</p></div></div>
+        <form id="passwordForm" class="access-form admin-password-form">
+          <label><span>当前密码</span><input id="currentPassword" type="password" maxlength="128" autocomplete="current-password" required></label>
+          <label><span>新密码</span><input id="newPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+          <label><span>确认新密码</span><input id="newPasswordConfirm" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+          <button class="access-primary" type="submit">修改密码</button>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const el = id => document.getElementById(id);
+    let applications = [];
+    let allowlist = [];
+
+    async function api(url, options = {}) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401) showLogin();
+        throw new Error(data.message || `请求失败 (${response.status})`);
+      }
+      return data;
+    }
+
+    function jsonOptions(method, body) {
+      return {method, headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
+    }
+
+    function setNotice(message, kind = "info") {
+      const notice = el("adminNotice");
+      notice.textContent = message;
+      notice.className = `access-notice is-${kind}`;
+      notice.hidden = !message;
+      if (message) window.scrollTo({top: 0, behavior: "smooth"});
+    }
+
+    function showOnly(id) {
+      for (const view of ["setupView", "loginView", "dashboardView"]) el(view).hidden = view !== id;
+      el("adminActions").hidden = id !== "dashboardView";
+    }
+
+    function showLogin() {
+      showOnly("loginView");
+      el("loginPassword").focus();
+    }
+
+    function statusLabel(status) {
+      return {pending: "待审批", approved: "已批准", rejected: "已拒绝"}[status] || status;
+    }
+
+    function decisionLabel(decision) {
+      return {device: "设备", ip: "IP", both: "设备和 IP", rejected: "已拒绝"}[decision] || "-";
+    }
+
+    function formatTime(value) {
+      return value ? new Date(value).toLocaleString("zh-CN", {hour12: false}) : "-";
+    }
+
+    function make(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function emptyState(text) {
+      const node = make("div", "admin-empty");
+      node.append(make("strong", "", text), make("p", "", "新记录出现后会显示在这里。"));
+      return node;
+    }
+
+    function renderApplications() {
+      const list = el("applicationList");
+      list.replaceChildren();
+      const selected = el("statusFilter").value;
+      const query = el("applicationSearch").value.trim().toLocaleLowerCase();
+      const visible = applications.filter(item =>
+        (selected === "all" || item.status === selected) &&
+        (!query || (item.name || "").toLocaleLowerCase().includes(query))
+      );
+      if (!visible.length) {
+        list.append(emptyState(query ? "没有匹配的姓名或团队" : selected === "pending" ? "目前没有待审批申请" : "没有符合条件的申请"));
+        return;
+      }
+      for (const item of visible) {
+        const card = make("article", `admin-record is-${item.status}`);
+        const head = make("div", "admin-record-head");
+        const identity = make("div", "admin-record-identity");
+        identity.append(make("h3", "", item.name), make("span", `admin-status is-${item.status}`, statusLabel(item.status)));
+        head.append(identity, make("time", "", formatTime(item.created_at)));
+
+        const meta = make("dl", "admin-meta");
+        for (const [label, value] of [["设备", item.device_id], ["IP", item.ip], ["联系方式", item.contact || "-"], ["处理结果", decisionLabel(item.decision)]]) {
+          const row = make("div"); row.append(make("dt", "", label), make("dd", "", value)); meta.append(row);
+        }
+        const message = make("div", "admin-message");
+        message.append(make("span", "", "留言"), make("p", "", item.message));
+        card.append(head, meta, message);
+
+        const actions = make("div", "admin-record-actions");
+        if (item.status === "pending") {
+          const grant = make("select", "admin-grant");
+          for (const [value, label] of [["device", "批准设备"], ["ip", "批准 IP"], ["both", "批准设备和 IP"]]) {
+            const option = make("option", "", label); option.value = value; grant.append(option);
+          }
+          const approve = make("button", "access-primary is-compact", "批准"); approve.type = "button";
+          approve.addEventListener("click", () => approveApplication(item.id, grant.value));
+          const reject = make("button", "access-danger", "拒绝"); reject.type = "button";
+          reject.addEventListener("click", () => rejectApplication(item.id));
+          actions.append(grant, approve, reject);
+        } else {
+          const remove = make("button", "access-secondary", "删除历史"); remove.type = "button";
+          remove.addEventListener("click", () => deleteApplication(item.id));
+          actions.append(remove);
+        }
+        card.append(actions);
+        list.append(card);
+      }
+    }
+
+    function renderAllowlist() {
+      const list = el("allowlistList");
+      list.replaceChildren();
+      if (!allowlist.length) {
+        list.append(emptyState("白名单还是空的"));
+        return;
+      }
+      for (const item of allowlist) {
+        const active = !item.revoked_at;
+        const card = make("article", `admin-record allow-record ${active ? "is-approved" : "is-revoked"}`);
+        const head = make("div", "admin-record-head");
+        const identity = make("div", "admin-record-identity");
+        identity.append(make("h3", "", item.label || "未命名"), make("span", `admin-status ${active ? "is-approved" : "is-revoked"}`, active ? "有效" : "已撤销"));
+        head.append(identity, make("time", "", formatTime(item.created_at)));
+        const meta = make("dl", "admin-meta");
+        for (const [label, value] of [["类型", item.kind === "device" ? "设备" : "IP"], ["识别值", item.value], ["来源申请", item.source_application_id || "-"]]) {
+          const row = make("div"); row.append(make("dt", "", label), make("dd", "", value)); meta.append(row);
+        }
+        card.append(head, meta);
+        if (active) {
+          const actions = make("div", "admin-record-actions");
+          const revoke = make("button", "access-danger", "撤销白名单"); revoke.type = "button";
+          revoke.addEventListener("click", () => revokeAllow(item.id));
+          actions.append(revoke); card.append(actions);
+        } else {
+          card.append(make("p", "admin-revoked-time", `撤销时间：${formatTime(item.revoked_at)}`));
+        }
+        list.append(card);
+      }
+    }
+
+    function updateStats() {
+      el("pendingCount").textContent = applications.filter(item => item.status === "pending").length;
+      el("historyCount").textContent = applications.filter(item => item.status !== "pending").length;
+      el("activeAllowCount").textContent = allowlist.filter(item => !item.revoked_at).length;
+    }
+
+    async function loadRecords() {
+      el("refreshAdminButton").disabled = true;
+      try {
+        const [appData, allowData] = await Promise.all([api("/api/admin/applications?status=all"), api("/api/admin/allowlist")]);
+        applications = appData.applications || [];
+        allowlist = allowData.allowlist || [];
+        renderApplications(); renderAllowlist(); updateStats();
+      } catch (error) {
+        setNotice(error.message, "error");
+      } finally {
+        el("refreshAdminButton").disabled = false;
+      }
+    }
+
+    async function approveApplication(id, grant) {
+      try { await api(`/api/admin/applications/${encodeURIComponent(id)}/approve`, jsonOptions("POST", {grant})); setNotice("申请已批准。", "success"); await loadRecords(); }
+      catch (error) { setNotice(error.message, "error"); }
+    }
+
+    async function rejectApplication(id) {
+      if (!confirm("拒绝这条访问申请？")) return;
+      try { await api(`/api/admin/applications/${encodeURIComponent(id)}/reject`, {method: "POST"}); setNotice("申请已拒绝。", "success"); await loadRecords(); }
+      catch (error) { setNotice(error.message, "error"); }
+    }
+
+    async function deleteApplication(id) {
+      if (!confirm("永久删除这条申请历史？关联的白名单不会被删除。")) return;
+      try { await api(`/api/admin/applications/${encodeURIComponent(id)}`, {method: "DELETE"}); setNotice("申请历史已删除。", "success"); await loadRecords(); }
+      catch (error) { setNotice(error.message, "error"); }
+    }
+
+    async function revokeAllow(id) {
+      if (!confirm("撤销后，对应设备或 IP 会立即失去访问权限。继续？")) return;
+      try { await api(`/api/admin/allowlist/${encodeURIComponent(id)}/revoke`, {method: "POST"}); setNotice("白名单已撤销。", "success"); await loadRecords(); }
+      catch (error) { setNotice(error.message, "error"); }
+    }
+
+    el("setupForm").addEventListener("submit", async event => {
+      event.preventDefault(); setNotice("");
+      if (el("setupPassword").value !== el("setupPasswordConfirm").value) { setNotice("两次输入的管理密码不一致。", "error"); return; }
+      try {
+        await api("/api/admin/setup", jsonOptions("POST", {setup_token: el("setupToken").value, password: el("setupPassword").value}));
+        setNotice("管理密码已创建，请登录。", "success"); showLogin();
+      } catch (error) { setNotice(error.message, "error"); }
+    });
+
+    el("loginForm").addEventListener("submit", async event => {
+      event.preventDefault(); setNotice("");
+      try {
+        await api("/api/admin/login", jsonOptions("POST", {password: el("loginPassword").value}));
+        el("loginPassword").value = ""; showOnly("dashboardView"); await loadRecords();
+      } catch (error) { setNotice(error.message, "error"); }
+    });
+
+    el("passwordForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      if (el("newPassword").value !== el("newPasswordConfirm").value) { setNotice("两次输入的新密码不一致。", "error"); return; }
+      try {
+        await api("/api/admin/password", jsonOptions("POST", {current_password: el("currentPassword").value, new_password: el("newPassword").value}));
+        setNotice("管理密码已修改，请重新登录。", "success"); showLogin();
+      } catch (error) { setNotice(error.message, "error"); }
+    });
+
+    el("logoutButton").addEventListener("click", async () => { try { await api("/api/admin/logout", {method: "POST"}); } finally { showLogin(); } });
+    el("refreshAdminButton").addEventListener("click", loadRecords);
+    el("applicationSearch").addEventListener("input", renderApplications);
+    el("statusFilter").addEventListener("change", renderApplications);
+    document.querySelectorAll(".admin-tabs button").forEach(button => button.addEventListener("click", () => {
+      document.querySelectorAll(".admin-tabs button").forEach(item => item.classList.toggle("is-active", item === button));
+      for (const name of ["applications", "allowlist", "security"]) el(`${name}Tab`).hidden = name !== button.dataset.tab;
+    }));
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const session = await api("/api/admin/session");
+        if (!session.configured) showOnly("setupView");
+        else if (!session.authenticated) showLogin();
+        else { showOnly("dashboardView"); await loadRecords(); }
+      } catch (error) { setNotice(error.message, "error"); }
+    });
+  </script>
+</body>
+</html>
