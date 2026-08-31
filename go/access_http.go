@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -37,6 +38,19 @@ type allowEntryView struct {
 	SourceApplicationID string     `json:"source_application_id,omitempty"`
 	CreatedAt           time.Time  `json:"created_at"`
 	RevokedAt           *time.Time `json:"revoked_at,omitempty"`
+}
+
+type accessVisitView struct {
+	DeviceID        string    `json:"device_id"`
+	IP              string    `json:"ip"`
+	UserAgent       string    `json:"user_agent,omitempty"`
+	Allowed         bool      `json:"allowed"`
+	VisitedAt       time.Time `json:"visited_at"`
+	Name            string    `json:"name,omitempty"`
+	Contact         string    `json:"contact,omitempty"`
+	Message         string    `json:"message,omitempty"`
+	MatchedBy       string    `json:"matched_by,omitempty"`
+	AllowlistActive bool      `json:"allowlist_active"`
 }
 
 func newServiceMux(ac *accessControl) http.Handler {
@@ -78,6 +92,9 @@ func newServiceMux(ac *accessControl) http.Handler {
 	mux.Handle("POST /api/admin/applications/{id}/reject", ac.requireAdmin(http.HandlerFunc(ac.handleRejectApplication)))
 	mux.Handle("DELETE /api/admin/applications/{id}", ac.requireAdmin(http.HandlerFunc(ac.handleDeleteApplication)))
 	mux.Handle("GET /api/admin/allowlist", ac.requireAdmin(http.HandlerFunc(ac.handleListAllowlist)))
+	mux.Handle("GET /api/admin/visits", ac.requireAdmin(http.HandlerFunc(ac.handleListVisits)))
+	mux.Handle("GET /api/admin/data-settings", ac.requireAdmin(http.HandlerFunc(handleAdminDataSettings)))
+	mux.Handle("POST /api/admin/data-settings", ac.requireAdmin(http.HandlerFunc(handleAdminDataSettings)))
 	mux.Handle("POST /api/admin/allowlist/{id}/revoke", ac.requireAdmin(http.HandlerFunc(ac.handleRevokeAllowEntry)))
 	mux.Handle("POST /api/admin/password", ac.requireAdmin(http.HandlerFunc(ac.handleChangePassword)))
 
@@ -236,7 +253,14 @@ func (ac *accessControl) requireViewer(next http.Handler) http.Handler {
 			http.Error(w, "无法创建设备凭证", http.StatusInternalServerError)
 			return
 		}
-		if ac.sessionValid(adminSessionToken(r)) || ac.isAllowed(deviceHash, clientIP(r)) {
+		ip := clientIP(r)
+		allowed := ac.sessionValid(adminSessionToken(r)) || ac.isAllowed(deviceHash, ip)
+		if r.Method == http.MethodGet && r.URL.Path == "/" && !directLocalRequest(r) {
+			if err := ac.recordVisit(deviceHash, ip, r.UserAgent(), allowed); err != nil {
+				log.Printf("记录访问历史失败: %v", err)
+			}
+		}
+		if allowed {
 			w.Header().Set("Cache-Control", "no-store")
 			next.ServeHTTP(w, r)
 			return
@@ -314,6 +338,21 @@ func allowEntryToView(entry allowEntry) allowEntryView {
 		SourceApplicationID: entry.SourceApplicationID,
 		CreatedAt:           entry.CreatedAt,
 		RevokedAt:           entry.RevokedAt,
+	}
+}
+
+func accessVisitToView(visit accessVisit, identity accessVisitIdentity) accessVisitView {
+	return accessVisitView{
+		DeviceID:        shortDeviceID(visit.DeviceHash),
+		IP:              visit.IP,
+		UserAgent:       visit.UserAgent,
+		Allowed:         visit.Allowed,
+		VisitedAt:       visit.VisitedAt,
+		Name:            identity.Name,
+		Contact:         identity.Contact,
+		Message:         identity.Message,
+		MatchedBy:       identity.MatchedBy,
+		AllowlistActive: identity.AllowlistActive,
 	}
 }
 
@@ -477,6 +516,15 @@ func (ac *accessControl) handleListAllowlist(w http.ResponseWriter, r *http.Requ
 		views = append(views, allowEntryToView(entry))
 	}
 	writeJSON(w, map[string]any{"allowlist": views})
+}
+
+func (ac *accessControl) handleListVisits(w http.ResponseWriter, r *http.Request) {
+	visits := ac.listVisits()
+	views := make([]accessVisitView, 0, len(visits))
+	for _, visit := range visits {
+		views = append(views, accessVisitToView(visit, ac.visitIdentity(visit)))
+	}
+	writeJSON(w, map[string]any{"visits": views})
 }
 
 func (ac *accessControl) handleRevokeAllowEntry(w http.ResponseWriter, r *http.Request) {

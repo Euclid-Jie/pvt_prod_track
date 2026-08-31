@@ -26,6 +26,7 @@ const (
 	accessStateVersion   = 1
 	applicationRateLimit = 5
 	loginFailureLimit    = 5
+	accessHistoryLimit   = 1000
 )
 
 type accessApplication struct {
@@ -51,11 +52,28 @@ type allowEntry struct {
 	RevokedAt           *time.Time `json:"revoked_at,omitempty"`
 }
 
+type accessVisit struct {
+	DeviceHash string    `json:"device_hash"`
+	IP         string    `json:"ip"`
+	UserAgent  string    `json:"user_agent,omitempty"`
+	Allowed    bool      `json:"allowed"`
+	VisitedAt  time.Time `json:"visited_at"`
+}
+
+type accessVisitIdentity struct {
+	Name            string
+	Contact         string
+	Message         string
+	MatchedBy       string
+	AllowlistActive bool
+}
+
 type accessState struct {
 	Version           int                 `json:"version"`
 	AdminPasswordHash string              `json:"admin_password_hash,omitempty"`
 	Applications      []accessApplication `json:"applications"`
 	Allowlist         []allowEntry        `json:"allowlist"`
+	Visits            []accessVisit       `json:"visits,omitempty"`
 }
 
 type accessControl struct {
@@ -87,6 +105,7 @@ func newAccessControl(dir string, resetAdmin bool) (*accessControl, error) {
 			Version:      accessStateVersion,
 			Applications: []accessApplication{},
 			Allowlist:    []allowEntry{},
+			Visits:       []accessVisit{},
 		},
 	}
 	if err := ac.load(); err != nil {
@@ -134,6 +153,9 @@ func (ac *accessControl) load() error {
 	}
 	if state.Allowlist == nil {
 		state.Allowlist = []allowEntry{}
+	}
+	if state.Visits == nil {
+		state.Visits = []accessVisit{}
 	}
 	ac.state = state
 	return nil
@@ -351,6 +373,88 @@ func (ac *accessControl) listAllowlist() []allowEntry {
 		return entries[i].CreatedAt.After(entries[j].CreatedAt)
 	})
 	return entries
+}
+
+func (ac *accessControl) recordVisit(deviceHash, ip, userAgent string, allowed bool) error {
+	visit := accessVisit{
+		DeviceHash: deviceHash,
+		IP:         canonicalIP(ip),
+		UserAgent:  truncateRunes(strings.TrimSpace(userAgent), 256),
+		Allowed:    allowed,
+		VisitedAt:  ac.now().UTC(),
+	}
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	previous := append([]accessVisit(nil), ac.state.Visits...)
+	ac.state.Visits = append(ac.state.Visits, visit)
+	if len(ac.state.Visits) > accessHistoryLimit {
+		ac.state.Visits = append([]accessVisit(nil), ac.state.Visits[len(ac.state.Visits)-accessHistoryLimit:]...)
+	}
+	if err := ac.saveLocked(); err != nil {
+		ac.state.Visits = previous
+		return err
+	}
+	return nil
+}
+
+func (ac *accessControl) listVisits() []accessVisit {
+	ac.mu.RLock()
+	defer ac.mu.RUnlock()
+	visits := append([]accessVisit(nil), ac.state.Visits...)
+	sort.Slice(visits, func(i, j int) bool {
+		return visits[i].VisitedAt.After(visits[j].VisitedAt)
+	})
+	return visits
+}
+
+func (ac *accessControl) visitIdentity(visit accessVisit) accessVisitIdentity {
+	ac.mu.RLock()
+	defer ac.mu.RUnlock()
+	entry := ac.latestMatchingAllowEntryLocked("device", visit.DeviceHash)
+	if entry == nil {
+		entry = ac.latestMatchingAllowEntryLocked("ip", visit.IP)
+	}
+	if entry == nil {
+		return accessVisitIdentity{}
+	}
+	identity := accessVisitIdentity{
+		Name:            entry.Label,
+		MatchedBy:       entry.Kind,
+		AllowlistActive: entry.RevokedAt == nil,
+	}
+	for i := len(ac.state.Applications) - 1; i >= 0; i-- {
+		application := ac.state.Applications[i]
+		if application.ID != entry.SourceApplicationID {
+			continue
+		}
+		identity.Name = application.Name
+		identity.Contact = application.Contact
+		identity.Message = application.Message
+		break
+	}
+	return identity
+}
+
+func (ac *accessControl) latestMatchingAllowEntryLocked(kind, value string) *allowEntry {
+	var latest *allowEntry
+	for i := range ac.state.Allowlist {
+		entry := &ac.state.Allowlist[i]
+		if entry.Kind != kind || entry.Value != value {
+			continue
+		}
+		if latest == nil || entry.CreatedAt.After(latest.CreatedAt) {
+			latest = entry
+		}
+	}
+	return latest
+}
+
+func truncateRunes(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
 }
 
 func (ac *accessControl) approveApplication(id, grant string) (accessApplication, error) {

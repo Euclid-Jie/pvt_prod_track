@@ -14,7 +14,7 @@
 .\pvt_prod_track_web.exe
 ```
 
-服务版默认监听 `0.0.0.0:5003`，页面地址为 `http://127.0.0.1:5003/`。
+服务版默认只监听 `127.0.0.1:5003`，页面地址为 `http://127.0.0.1:5003/`。公网访问由 Nginx 反向代理，不直接开放应用端口。
 
 ## 构建
 
@@ -37,6 +37,17 @@ Set-Location go
 go build -o ..\pvt_prod_track_web.exe .
 ```
 
+Linux x86-64 服务版（在 Windows 上交叉编译）：
+```powershell
+$env:CGO_ENABLED = "0"
+$env:GOOS = "linux"
+$env:GOARCH = "amd64"
+go -C go build -trimpath -o "$env:TEMP\pvt_prod_track_web" .
+```
+
+Ubuntu 部署、systemd、数据库内网连接和切流步骤见 [docs/linux-deployment.md](docs/linux-deployment.md)。
+日常发布、故障处理、回滚和节假日文件同步见 [docs/operations-runbook.md](docs/operations-runbook.md)。
+
 调试版：
 ```powershell
 Set-Location go
@@ -48,6 +59,7 @@ go build -o ..\pvt_prod_track_debug.exe .
 - 桌面版绑定 `127.0.0.1:0`，由系统分配本机随机端口；不要改回固定 `:5000`。
 - 服务版固定使用 `5003`，入口页面为 `templates/service.html`，适合浏览器和手机访问。
 - `templates/index.html` 与 `templates/service.html` 分别对应桌面版和服务版布局，修改时保持隔离。
+- 云端服务的 `last_day` 通过 SSH 隧道进入 `/admin` 的“数据更新”维护；本地桌面版配置不会同步到云端。新日期必须通过真实查询且存在可展示数据后才会生效。
 - 收益指标按近一周、近一月、YTD、近一年的顺序展示，顶部显示近一月平均，并支持按近一月排序和导出。Excel 导出按策略分别写入 Sheet，仅包含管理人、规模、策略类型和各区间收益，不包含产品名称。
 - 服务版表格首列是当前筛选和排序结果下的排名，格式为 `当前序号/当前总数`，例如 `1/93`。
 - 服务版表格中，管理人名称包含 `指数` 的行会使用浅蓝底色标记，管理人单元格显示为浅蓝色标签。

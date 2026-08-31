@@ -233,6 +233,119 @@ func TestCorruptAccessStoreFailsClosed(t *testing.T) {
 	}
 }
 
+func TestHomepageVisitHistoryPersistsAndSkipsLocalOrAPIRequests(t *testing.T) {
+	dir := t.TempDir()
+	ac, err := newAccessControl(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 8, 31, 3, 0, 0, 0, time.UTC)
+	ac.now = func() time.Time { return now }
+	deviceToken := base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{5}, 32))
+	deviceHash := tokenHash(deviceToken)
+	ac.mu.Lock()
+	if err := ac.addAllowEntryLocked("device", deviceHash, "访问历史测试", "", now); err != nil {
+		ac.mu.Unlock()
+		t.Fatal(err)
+	}
+	ac.mu.Unlock()
+	serviceMux := newServiceMux(ac)
+
+	approved := httptest.NewRequest(http.MethodGet, "http://report.example/", nil)
+	approved.RemoteAddr = "127.0.0.1:50000"
+	approved.Header.Set("X-Forwarded-For", "203.0.113.91")
+	approved.Header.Set("User-Agent", "Visit Test Browser")
+	approved.AddCookie(&http.Cookie{Name: deviceCookieName, Value: deviceToken})
+	approvedResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(approvedResult, approved)
+	if approvedResult.Code != http.StatusOK {
+		t.Fatalf("approved homepage = %d, want 200", approvedResult.Code)
+	}
+
+	now = now.Add(time.Minute)
+	denied := httptest.NewRequest(http.MethodGet, "http://report.example/", nil)
+	denied.RemoteAddr = "127.0.0.1:50000"
+	denied.Header.Set("X-Forwarded-For", "203.0.113.92")
+	deniedResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(deniedResult, denied)
+	if deniedResult.Code != http.StatusFound {
+		t.Fatalf("denied homepage = %d, want 302", deniedResult.Code)
+	}
+
+	apiRequest := httptest.NewRequest(http.MethodGet, "http://report.example/api/status", nil)
+	apiRequest.RemoteAddr = "127.0.0.1:50000"
+	apiRequest.Header.Set("X-Forwarded-For", "203.0.113.93")
+	serviceMux.ServeHTTP(httptest.NewRecorder(), apiRequest)
+	localRequest := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	localRequest.RemoteAddr = "127.0.0.1:50000"
+	serviceMux.ServeHTTP(httptest.NewRecorder(), localRequest)
+
+	visits := ac.listVisits()
+	if len(visits) != 2 {
+		t.Fatalf("visits = %+v, want two public homepage visits", visits)
+	}
+	if visits[0].IP != "203.0.113.92" || visits[0].Allowed {
+		t.Fatalf("latest visit = %+v, want denied visit", visits[0])
+	}
+	if visits[1].IP != "203.0.113.91" || !visits[1].Allowed || visits[1].UserAgent != "Visit Test Browser" {
+		t.Fatalf("earlier visit = %+v, want approved visit", visits[1])
+	}
+
+	reloaded, err := newAccessControl(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.listVisits(); len(got) != 2 || got[0].IP != "203.0.113.92" {
+		t.Fatalf("reloaded visits = %+v", got)
+	}
+}
+
+func TestVisitIdentityPrefersDeviceAllowlistAndIncludesApplicant(t *testing.T) {
+	ac := newTestAccessControl(t)
+	ip := "203.0.113.101"
+	targetDevice := tokenHash("identity-device")
+	ipApplication, err := ac.createApplication(tokenHash("other-device"), ip, applicationInput{
+		Name: "共享 IP 申请人", Message: "通过 IP 访问",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ac.approveApplication(ipApplication.ID, "ip"); err != nil {
+		t.Fatal(err)
+	}
+	deviceApplication, err := ac.createApplication(targetDevice, "198.51.100.20", applicationInput{
+		Name: "设备申请人", Contact: "device@example.com", Message: "通过固定设备访问",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ac.approveApplication(deviceApplication.ID, "device"); err != nil {
+		t.Fatal(err)
+	}
+
+	visit := accessVisit{DeviceHash: targetDevice, IP: ip}
+	identity := ac.visitIdentity(visit)
+	if identity.Name != "设备申请人" || identity.Contact != "device@example.com" || identity.Message != "通过固定设备访问" {
+		t.Fatalf("visit identity = %+v", identity)
+	}
+	if identity.MatchedBy != "device" || !identity.AllowlistActive {
+		t.Fatalf("visit identity match = %+v, want active device match", identity)
+	}
+
+	for _, entry := range ac.listAllowlist() {
+		if entry.Kind == "device" {
+			if _, err := ac.revokeAllowEntry(entry.ID); err != nil {
+				t.Fatal(err)
+			}
+			break
+		}
+	}
+	identity = ac.visitIdentity(visit)
+	if identity.Name != "设备申请人" || identity.MatchedBy != "device" || identity.AllowlistActive {
+		t.Fatalf("revoked visit identity = %+v, want retained revoked device identity", identity)
+	}
+}
+
 func TestServiceRouteMatrixAndDesktopRemainsOpen(t *testing.T) {
 	ac := newTestAccessControl(t)
 	deviceToken := base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))
@@ -291,6 +404,24 @@ func TestServiceRouteMatrixAndDesktopRemainsOpen(t *testing.T) {
 	serviceMux.ServeHTTP(configResult, configRequest)
 	if configResult.Code != http.StatusNotFound {
 		t.Fatalf("approved viewer /api/config = %d, want 404", configResult.Code)
+	}
+
+	dataSettingsRequest := httptest.NewRequest(http.MethodGet, "http://report.example/api/admin/data-settings", nil)
+	dataSettingsRequest.RemoteAddr = "127.0.0.1:50000"
+	dataSettingsRequest.Header.Set("X-Forwarded-For", "203.0.113.50")
+	dataSettingsRequest.AddCookie(&http.Cookie{Name: deviceCookieName, Value: deviceToken})
+	dataSettingsResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(dataSettingsResult, dataSettingsRequest)
+	if dataSettingsResult.Code != http.StatusNotFound {
+		t.Fatalf("approved viewer /api/admin/data-settings = %d, want 404", dataSettingsResult.Code)
+	}
+
+	localDataSettingsRequest := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/admin/data-settings", nil)
+	localDataSettingsRequest.RemoteAddr = "127.0.0.1:50000"
+	localDataSettingsResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(localDataSettingsResult, localDataSettingsRequest)
+	if localDataSettingsResult.Code != http.StatusUnauthorized {
+		t.Fatalf("local unauthenticated /api/admin/data-settings = %d, want 401", localDataSettingsResult.Code)
 	}
 
 	desktopResult := httptest.NewRecorder()

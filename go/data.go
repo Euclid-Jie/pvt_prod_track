@@ -248,13 +248,22 @@ func pivotCol(begin, end, metric string) string {
 		begin, end, metric)
 }
 
-func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
+func loadData(_ *Config, intervals []Interval) ([]Fund, error) {
 	dataCache.mu.Lock()
 	defer dataCache.mu.Unlock()
 	if dataCache.funds != nil {
 		return dataCache.funds, nil
 	}
 
+	funds, err := loadDataUncached(intervals)
+	if err != nil {
+		return nil, err
+	}
+	dataCache.funds = funds
+	return funds, nil
+}
+
+func loadDataUncached(intervals []Interval) ([]Fund, error) {
 	dbMu.Lock()
 	navDB := dbNav
 	euclidDB := dbEuclid
@@ -437,13 +446,18 @@ func loadData(cfg *Config, intervals []Interval) ([]Fund, error) {
 		})
 	}
 
-	dataCache.funds = funds
 	return funds, nil
 }
 
 func clearCache() {
 	dataCache.mu.Lock()
 	dataCache.funds = nil
+	dataCache.mu.Unlock()
+}
+
+func replaceCache(funds []Fund) {
+	dataCache.mu.Lock()
+	dataCache.funds = funds
 	dataCache.mu.Unlock()
 }
 

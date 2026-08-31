@@ -1,0 +1,22 @@
+[Unit]
+Description=Private fund performance web service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=pvt-prod-track
+Group=pvt-prod-track
+WorkingDirectory=/var/lib/pvt-prod-track
+ExecStart=/opt/pvt-prod-track/pvt_prod_track_web -listen 127.0.0.1:5003 -data-dir /var/lib/pvt-prod-track
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pvt-prod-track
+
+[Install]
+WantedBy=multi-user.target

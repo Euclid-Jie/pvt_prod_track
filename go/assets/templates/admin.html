@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>访问管理 · 私募产品周报</title>
-  <link rel="icon" href="/icon.ico" type="image/x-icon">
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="web-mode admin-body">
@@ -46,7 +46,7 @@
 
     <section id="dashboardView" hidden>
       <div class="admin-heading">
-        <div><p class="access-kicker">访问登记簿</p><h1>申请与白名单</h1></div>
+        <div><p class="access-kicker">服务控制台</p><h1>访问与数据管理</h1></div>
         <button id="refreshAdminButton" class="access-secondary" type="button">刷新记录</button>
       </div>
 
@@ -54,11 +54,14 @@
         <article><span>待审批</span><strong id="pendingCount">0</strong></article>
         <article><span>有效白名单</span><strong id="activeAllowCount">0</strong></article>
         <article><span>历史申请</span><strong id="historyCount">0</strong></article>
+		<article><span>今日访问</span><strong id="todayVisitCount">0</strong></article>
       </div>
 
       <nav class="admin-tabs" aria-label="管理栏目">
         <button class="is-active" data-tab="applications" type="button">申请记录</button>
         <button data-tab="allowlist" type="button">白名单</button>
+		<button data-tab="visits" type="button">访问历史</button>
+        <button data-tab="data" type="button">数据更新</button>
         <button data-tab="security" type="button">安全设置</button>
       </nav>
 
@@ -78,6 +81,39 @@
         <div id="allowlistList" class="admin-record-list"></div>
       </section>
 
+	  <section id="visitsTab" class="admin-panel" hidden>
+		<div class="admin-panel-head">
+		  <div><h2>访问历史</h2><p>记录进入周报首页的访问；完整请求仍以 Nginx 日志为准。</p></div>
+		  <div class="admin-filters">
+			<label class="admin-filter"><span>姓名/IP</span><input id="visitSearch" type="search" maxlength="80" autocomplete="off" placeholder="输入姓名或 IP"></label>
+			<label class="admin-filter"><span>结果</span><select id="visitStatusFilter"><option value="all">全部</option><option value="allowed">已放行</option><option value="denied">未授权</option></select></label>
+		  </div>
+		</div>
+		<div id="visitList" class="admin-record-list"></div>
+	  </section>
+
+      <section id="dataTab" class="admin-panel" hidden>
+        <div class="admin-panel-head">
+          <div><h2>数据截止日</h2><p>仅在上游指标完整生成后更新；本地桌面版的设置不会同步到这里。</p></div>
+        </div>
+        <div class="admin-data-layout">
+          <article class="admin-data-summary">
+            <span>当前线上截止日</span>
+            <strong id="currentLastDay">-</strong>
+            <dl class="admin-intervals">
+              <div><dt>近一周</dt><dd id="currentWeekInterval">-</dd></div>
+              <div><dt>近一月</dt><dd id="currentMonthInterval">-</dd></div>
+              <div><dt>今年以来</dt><dd id="currentYTDInterval">-</dd></div>
+            </dl>
+          </article>
+          <form id="dataSettingsForm" class="access-form admin-data-form">
+            <label><span>新的最新交易日</span><input id="lastDayInput" type="date" required></label>
+            <p>提交后会先查询该日期对应的指标。验证成功才会更新云端配置和缓存；验证失败时线上周报保持不变。</p>
+            <button id="saveLastDayButton" class="access-primary" type="submit">验证并更新</button>
+          </form>
+        </div>
+      </section>
+
       <section id="securityTab" class="admin-panel" hidden>
         <div class="admin-panel-head"><div><h2>修改管理密码</h2><p>修改成功后，所有管理会话都会退出。</p></div></div>
         <form id="passwordForm" class="access-form admin-password-form">
@@ -94,6 +130,8 @@
     const el = id => document.getElementById(id);
     let applications = [];
     let allowlist = [];
+	let visits = [];
+    let dataSettings = null;
 
     async function api(url, options = {}) {
       const response = await fetch(url, options);
@@ -232,23 +270,84 @@
       }
     }
 
+	function renderVisits() {
+	  const list = el("visitList");
+	  list.replaceChildren();
+	  const query = el("visitSearch").value.trim();
+	  const selected = el("visitStatusFilter").value;
+	  const visible = visits.filter(item =>
+		(!query || (item.ip || "").includes(query) || (item.name || "").toLocaleLowerCase().includes(query.toLocaleLowerCase())) &&
+		(selected === "all" || (selected === "allowed") === item.allowed)
+	  );
+	  if (!visible.length) {
+		list.append(emptyState(query ? "没有匹配的姓名或 IP" : "还没有访问历史"));
+		return;
+	  }
+	  for (const item of visible) {
+		const card = make("article", `admin-record ${item.allowed ? "is-approved" : "is-rejected"}`);
+		const head = make("div", "admin-record-head");
+		const identity = make("div", "admin-record-identity");
+		identity.append(make("h3", "", item.name || item.ip || "未知访客"), make("span", `admin-status ${item.allowed ? "is-approved" : "is-rejected"}`, item.allowed ? "已放行" : "未授权"));
+		head.append(identity, make("time", "", formatTime(item.visited_at)));
+		const meta = make("dl", "admin-meta");
+		const matchedBy = item.matched_by ? `${item.matched_by === "device" ? "设备" : "IP"}${item.allowlist_active ? "（当前有效）" : "（已撤销）"}` : "未匹配白名单";
+		for (const [label, value] of [["IP", item.ip || "-"], ["设备", item.device_id || "-"], ["白名单匹配", matchedBy], ["联系方式", item.contact || "-"], ["浏览器", item.user_agent || "-"]]) {
+		  const row = make("div"); row.append(make("dt", "", label), make("dd", "", value)); meta.append(row);
+		}
+		card.append(head, meta);
+		if (item.message) {
+		  const message = make("div", "admin-message");
+		  message.append(make("span", "", "申请留言"), make("p", "", item.message));
+		  card.append(message);
+		}
+		list.append(card);
+	  }
+	}
+
     function updateStats() {
       el("pendingCount").textContent = applications.filter(item => item.status === "pending").length;
       el("historyCount").textContent = applications.filter(item => item.status !== "pending").length;
       el("activeAllowCount").textContent = allowlist.filter(item => !item.revoked_at).length;
+	  const today = new Date();
+	  el("todayVisitCount").textContent = visits.filter(item => {
+		const visited = new Date(item.visited_at);
+		return visited.getFullYear() === today.getFullYear() && visited.getMonth() === today.getMonth() && visited.getDate() === today.getDate();
+	  }).length;
     }
 
     async function loadRecords() {
       el("refreshAdminButton").disabled = true;
       try {
-        const [appData, allowData] = await Promise.all([api("/api/admin/applications?status=all"), api("/api/admin/allowlist")]);
+		const [appData, allowData, visitData] = await Promise.all([api("/api/admin/applications?status=all"), api("/api/admin/allowlist"), api("/api/admin/visits")]);
         applications = appData.applications || [];
         allowlist = allowData.allowlist || [];
-        renderApplications(); renderAllowlist(); updateStats();
+		visits = visitData.visits || [];
+		renderApplications(); renderAllowlist(); renderVisits(); updateStats();
       } catch (error) {
         setNotice(error.message, "error");
       } finally {
         el("refreshAdminButton").disabled = false;
+      }
+    }
+
+    function intervalLabel(begin, end) {
+      return begin && end ? `${begin} 至 ${end}` : "-";
+    }
+
+    function renderDataSettings(value) {
+      dataSettings = value;
+      el("currentLastDay").textContent = value.last_day || "-";
+      el("currentWeekInterval").textContent = intervalLabel(value.week_begin, value.week_end);
+      el("currentMonthInterval").textContent = intervalLabel(value.month_begin, value.month_end);
+      el("currentYTDInterval").textContent = intervalLabel(value.ytd_begin, value.ytd_end);
+      el("lastDayInput").value = value.last_day || "";
+    }
+
+    async function loadDataSettings() {
+      try {
+        renderDataSettings(await api("/api/admin/data-settings"));
+      } catch (error) {
+        setNotice(error.message, "error");
       }
     }
 
@@ -288,7 +387,7 @@
       event.preventDefault(); setNotice("");
       try {
         await api("/api/admin/login", jsonOptions("POST", {password: el("loginPassword").value}));
-        el("loginPassword").value = ""; showOnly("dashboardView"); await loadRecords();
+        el("loginPassword").value = ""; showOnly("dashboardView"); await Promise.all([loadRecords(), loadDataSettings()]);
       } catch (error) { setNotice(error.message, "error"); }
     });
 
@@ -301,13 +400,31 @@
       } catch (error) { setNotice(error.message, "error"); }
     });
 
+    el("dataSettingsForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = el("saveLastDayButton");
+      button.disabled = true;
+      setNotice("");
+      try {
+        const result = await api("/api/admin/data-settings", jsonOptions("POST", {last_day: el("lastDayInput").value}));
+        renderDataSettings(result);
+        setNotice(`线上数据截止日已更新为 ${result.last_day}，已验证 ${result.fund_count} 条产品数据。`, "success");
+      } catch (error) {
+        setNotice(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     el("logoutButton").addEventListener("click", async () => { try { await api("/api/admin/logout", {method: "POST"}); } finally { showLogin(); } });
     el("refreshAdminButton").addEventListener("click", loadRecords);
     el("applicationSearch").addEventListener("input", renderApplications);
     el("statusFilter").addEventListener("change", renderApplications);
+	el("visitSearch").addEventListener("input", renderVisits);
+	el("visitStatusFilter").addEventListener("change", renderVisits);
     document.querySelectorAll(".admin-tabs button").forEach(button => button.addEventListener("click", () => {
       document.querySelectorAll(".admin-tabs button").forEach(item => item.classList.toggle("is-active", item === button));
-      for (const name of ["applications", "allowlist", "security"]) el(`${name}Tab`).hidden = name !== button.dataset.tab;
+      for (const name of ["applications", "allowlist", "visits", "data", "security"]) el(`${name}Tab`).hidden = name !== button.dataset.tab;
     }));
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -315,7 +432,7 @@
         const session = await api("/api/admin/session");
         if (!session.configured) showOnly("setupView");
         else if (!session.authenticated) showLogin();
-        else { showOnly("dashboardView"); await loadRecords(); }
+        else { showOnly("dashboardView"); await Promise.all([loadRecords(), loadDataSettings()]); }
       } catch (error) { setNotice(error.message, "error"); }
     });
   </script>

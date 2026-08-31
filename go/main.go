@@ -2,20 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"time"
-
-	webview "github.com/jchv/go-webview2"
 )
 
 type Config struct {
@@ -29,6 +28,29 @@ type Config struct {
 type IntervalsFile struct {
 	Yearly []Interval `json:"yearly"`
 }
+
+type intervalState struct {
+	All   []Interval
+	Week  Interval
+	Month Interval
+	YTD   Interval
+}
+
+type dataSettingsResponse struct {
+	LastDay    string `json:"last_day"`
+	WeekBegin  string `json:"week_begin"`
+	WeekEnd    string `json:"week_end"`
+	MonthBegin string `json:"month_begin"`
+	MonthEnd   string `json:"month_end"`
+	YTDBegin   string `json:"ytd_begin"`
+	YTDEnd     string `json:"ytd_end"`
+	FundCount  int    `json:"fund_count,omitempty"`
+}
+
+var (
+	errInvalidLastDay = errors.New("invalid last_day")
+	errLastDayNoData  = errors.New("last_day has no data")
+)
 
 var (
 	cfg       Config
@@ -77,14 +99,31 @@ func resolveDataDir(exePath string) string {
 
 func main() {
 	listenAddr := flag.String("listen", "127.0.0.1:5003", "listen address for service mode")
+	dataDirFlag := flag.String("data-dir", "", "data directory for config and access-control files")
 	resetAdmin := flag.Bool("reset-admin", false, "reset the web service administrator password")
 	flag.Parse()
+
+	explicitDataDir := ""
+	if *dataDirFlag != "" {
+		var err error
+		explicitDataDir, err = filepath.Abs(*dataDirFlag)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	exePath, _ := os.Executable()
 	if exePath != "" {
 		_ = os.Chdir(filepath.Dir(exePath))
 	}
-	dataDir = resolveDataDir(exePath)
+	if explicitDataDir != "" {
+		if err := os.MkdirAll(explicitDataDir, 0700); err != nil {
+			log.Fatal(err)
+		}
+		dataDir = explicitDataDir
+	} else {
+		dataDir = resolveDataDir(exePath)
+	}
 
 	cfgData, err := os.ReadFile(filepath.Join(dataDir, "config.json"))
 	if err == nil {
@@ -98,7 +137,7 @@ func main() {
 		go loadData(&cfg, intervals)
 	}
 
-	if isWebServiceExe(exePath) {
+	if runtime.GOOS != "windows" || isWebServiceExe(exePath) {
 		access, err := newAccessControl(dataDir, *resetAdmin)
 		if err != nil {
 			log.Fatal(err)
@@ -112,31 +151,6 @@ func main() {
 func isWebServiceExe(exePath string) bool {
 	base := filepath.Base(exePath)
 	return base == "pvt_prod_track_web.exe" || base == "pvt_prod_track_web"
-}
-
-func startDesktopApp() {
-	mux := newAppMux("assets/templates/index.html")
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		log.Fatal(err)
-	}
-	serverURL := "http://" + listener.Addr().String()
-	go func() {
-		if err := http.Serve(listener, mux); err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
-		}
-	}()
-
-	w := webview.New(false)
-	if w == nil {
-		log.Fatal("WebView2 初始化失败，请确认系统已安装 WebView2 Runtime")
-	}
-	defer w.Destroy()
-	w.SetTitle("私募产品周报")
-	w.SetSize(1400, 860, webview.HintNone)
-	setWindowIcon(w.Window())
-	w.Navigate(serverURL)
-	w.Run()
 }
 
 func startServiceServer(addr string, access *accessControl) {
@@ -184,51 +198,158 @@ func serveTemplate(w http.ResponseWriter, path string) {
 	_, _ = w.Write(data)
 }
 
-func reloadIntervals() error {
+func loadIntervalState(lastDayValue string) (intervalState, error) {
+	if lastDayValue == "" {
+		return intervalState{}, nil
+	}
+	lastDay, err := time.Parse("2006-01-02", lastDayValue)
+	if err != nil {
+		return intervalState{}, errInvalidLastDay
+	}
+
 	ivData, err := os.ReadFile(filepath.Join(dataDir, "intervals.json"))
 	if err != nil {
 		ivData, err = embeddedAssets.ReadFile("assets/intervals.json")
 		if err != nil {
-			return err
+			return intervalState{}, err
 		}
 	}
 	var ivCfg IntervalsFile
 	if err := json.Unmarshal(ivData, &ivCfg); err != nil {
-		return err
+		return intervalState{}, err
 	}
 
 	holidays, err := loadHolidays(filepath.Join(dataDir, "Chinese_special_holiday.txt"))
 	if err != nil {
 		hData, err2 := embeddedAssets.ReadFile("assets/Chinese_special_holiday.txt")
 		if err2 != nil {
-			return err
+			return intervalState{}, err
 		}
 		holidays, err = loadHolidaysFromBytes(hData)
 		if err != nil {
-			return err
+			return intervalState{}, err
 		}
 	}
 
-	if cfg.LastDay == "" {
-		return nil
+	state := intervalState{All: buildIntervals(lastDay, ivCfg.Yearly, holidays)}
+	for _, iv := range state.All {
+		if iv.Name == "recent_week" {
+			state.Week = iv
+		}
+		if iv.Name == "recent_month" {
+			state.Month = iv
+		}
+		if iv.Name == "ytd" {
+			state.YTD = iv
+		}
 	}
-	lastDay, err := time.Parse("2006-01-02", cfg.LastDay)
+	return state, nil
+}
+
+func applyIntervalState(state intervalState) {
+	intervals = state.All
+	weekIV = state.Week
+	monthIV = state.Month
+	ytdIV = state.YTD
+}
+
+func reloadIntervals() error {
+	state, err := loadIntervalState(cfg.LastDay)
 	if err != nil {
 		return err
 	}
-	intervals = buildIntervals(lastDay, ivCfg.Yearly, holidays)
-	for _, iv := range intervals {
-		if iv.Name == "recent_week" {
-			weekIV = iv
-		}
-		if iv.Name == "recent_month" {
-			monthIV = iv
-		}
-		if iv.Name == "ytd" {
-			ytdIV = iv
-		}
-	}
+	applyIntervalState(state)
 	return nil
+}
+
+func dataSettings(lastDay string, state intervalState, fundCount int) dataSettingsResponse {
+	return dataSettingsResponse{
+		LastDay:    lastDay,
+		WeekBegin:  state.Week.Begin,
+		WeekEnd:    state.Week.End,
+		MonthBegin: state.Month.Begin,
+		MonthEnd:   state.Month.End,
+		YTDBegin:   state.YTD.Begin,
+		YTDEnd:     state.YTD.End,
+		FundCount:  fundCount,
+	}
+}
+
+func currentDataSettings() dataSettingsResponse {
+	return dataSettings(cfg.LastDay, intervalState{All: intervals, Week: weekIV, Month: monthIV, YTD: ytdIV}, 0)
+}
+
+func updateLastDay(lastDay string) (dataSettingsResponse, error) {
+	return updateLastDayWithLoader(lastDay, loadDataUncached)
+}
+
+func updateLastDayWithLoader(lastDay string, loader func([]Interval) ([]Fund, error)) (dataSettingsResponse, error) {
+	state, err := loadIntervalState(lastDay)
+	if err != nil {
+		return dataSettingsResponse{}, err
+	}
+	if lastDay == "" {
+		return dataSettingsResponse{}, errInvalidLastDay
+	}
+
+	funds, err := loader(state.All)
+	if err != nil {
+		return dataSettingsResponse{}, err
+	}
+	if len(funds) == 0 {
+		return dataSettingsResponse{}, errLastDayNoData
+	}
+
+	newCfg := cfg
+	newCfg.LastDay = lastDay
+	data, err := json.MarshalIndent(newCfg, "", "  ")
+	if err != nil {
+		return dataSettingsResponse{}, err
+	}
+	configPath := filepath.Join(dataDir, "config.json")
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
+		return dataSettingsResponse{}, err
+	}
+	_ = os.Chmod(configPath, 0600)
+
+	cfg = newCfg
+	hasConfig = true
+	applyIntervalState(state)
+	replaceCache(funds)
+	return dataSettings(lastDay, state, len(funds)), nil
+}
+
+func handleAdminDataSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		writeJSON(w, currentDataSettings())
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var input struct {
+		LastDay string `json:"last_day"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_json", "请求内容无效")
+		return
+	}
+	result, err := updateLastDay(input.LastDay)
+	if errors.Is(err, errInvalidLastDay) {
+		writeAPIError(w, http.StatusBadRequest, "invalid_last_day", "请输入有效的交易日，格式为 YYYY-MM-DD")
+		return
+	}
+	if errors.Is(err, errLastDayNoData) {
+		writeAPIError(w, http.StatusConflict, "last_day_no_data", "该交易日尚无可展示的指标数据，线上截止日未修改")
+		return
+	}
+	if err != nil {
+		log.Printf("更新最新交易日失败: %v", err)
+		writeAPIError(w, http.StatusInternalServerError, "last_day_update_failed", "验证或保存失败，线上截止日未修改")
+		return
+	}
+	writeJSON(w, result)
 }
 
 func handleData(w http.ResponseWriter, r *http.Request) {

@@ -25,6 +25,14 @@ cd go
 go build -o ../pvt_prod_track_web.exe .
 ```
 
+Linux x86-64 service build from PowerShell:
+```powershell
+$env:CGO_ENABLED = "0"
+$env:GOOS = "linux"
+$env:GOARCH = "amd64"
+go -C go build -trimpath -o "$env:TEMP\pvt_prod_track_web" .
+```
+
 **After editing `templates/` or `static/`, sync to embedded assets before building:**
 ```bash
 cp templates/index.html go/assets/templates/index.html
@@ -35,14 +43,16 @@ cp static/style.css go/assets/static/style.css
 ## Architecture
 
 **Go source** (`go/`):
-- `main.go` — HTTP server, WebView2 window, all route handlers, config management
+- `main.go` — HTTP server, service entry, all route handlers, config management
+- `desktop_windows.go` — Windows WebView2 desktop window
+- `desktop_nonwindows.go` — non-Windows desktop-mode guard
 - `data.go` — server-side pivot SQL, in-memory cache (`dataCache`), DB connection pools
 - `intervals.go` — trading calendar, interval computation (`buildIntervals`)
 - `export.go` — Excel export via `excelize/v2`
 - `embed.go` — `//go:embed assets` declaration
 - `dpi_windows.go` — Windows DPI awareness via syscall (init)
 - `icon_windows.go` — Window icon via `WM_SETICON`
-- `resource.syso` — compiled icon resource (regenerate: `goversioninfo -icon=icon.ico -o resource.syso`)
+- `resource_windows.syso` — compiled Windows icon resource (regenerate: `goversioninfo -icon=icon.ico -o resource_windows.syso`)
 
 **Embedded assets** (`go/assets/`) — copied from project root before build:
 - `templates/index.html` ← from `templates/index.html`
@@ -67,6 +77,10 @@ go build -o ../pvt_prod_track_web.exe .
 ```
 It serves `templates/service.html`, a responsive page for browser/mobile use.
 This binary is separate from `pvt_prod_track.exe` and must not alter the desktop flow.
+On Linux, service mode is selected regardless of the executable filename. The production
+Ubuntu service binds to `127.0.0.1:5003` and is exposed only through Nginx on port 80/443.
+It passes `-data-dir /var/lib/pvt-prod-track` explicitly because the process changes its
+working directory to the binary directory before starting the server.
 
 ## Config & Data Directory
 
@@ -140,6 +154,8 @@ This key is used to look up rows in the absolute and excess pivot maps in Go (`k
 | `/api/refresh` | POST | Clear cache + reload |
 | `/api/export/excel` | GET | Excel download (one sheet per strategy; manager, scale, strategy, and interval returns only) |
 | `/api/status` | GET | `{"configured": bool}` |
+
+服务版另有管理员专用的 `GET/POST /api/admin/data-settings`。它只返回和修改 `last_day` 及派生区间，不向浏览器返回数据库连接信息；POST 在写入配置前使用候选区间执行真实查询，查询失败或无可展示产品时保持当前线上配置和缓存不变。
 
 ## Frontend
 
