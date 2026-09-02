@@ -270,6 +270,30 @@ func (ac *accessControl) isAllowed(deviceHash, ip string) bool {
 	return false
 }
 
+func (ac *accessControl) viewerName(deviceHash, ip string) string {
+	ac.mu.RLock()
+	defer ac.mu.RUnlock()
+	for _, match := range []struct {
+		kind  string
+		value string
+	}{{"device", deviceHash}, {"ip", ip}} {
+		var latest *allowEntry
+		for index := range ac.state.Allowlist {
+			entry := &ac.state.Allowlist[index]
+			if entry.Kind != match.kind || entry.Value != match.value || entry.RevokedAt != nil {
+				continue
+			}
+			if latest == nil || entry.CreatedAt.After(latest.CreatedAt) {
+				latest = entry
+			}
+		}
+		if latest != nil && strings.TrimSpace(latest.Label) != "" {
+			return latest.Label
+		}
+	}
+	return "已授权用户"
+}
+
 func validateApplicationInput(input applicationInput) (applicationInput, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.Contact = strings.TrimSpace(input.Contact)

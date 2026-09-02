@@ -22,6 +22,15 @@ func newTestAccessControl(t *testing.T) *accessControl {
 	return ac
 }
 
+func newTestServiceMux(t *testing.T, ac *accessControl) http.Handler {
+	t.Helper()
+	feedback, err := newFeedbackStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("newFeedbackStore() error = %v", err)
+	}
+	return newServiceMux(ac, feedback)
+}
+
 func TestClientIPTrustsOnlyLoopbackProxyAndUsesRightmostValue(t *testing.T) {
 	trusted := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
 	trusted.RemoteAddr = "127.0.0.1:50000"
@@ -249,7 +258,7 @@ func TestHomepageVisitHistoryPersistsAndSkipsLocalOrAPIRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	ac.mu.Unlock()
-	serviceMux := newServiceMux(ac)
+	serviceMux := newTestServiceMux(t, ac)
 
 	approved := httptest.NewRequest(http.MethodGet, "http://report.example/", nil)
 	approved.RemoteAddr = "127.0.0.1:50000"
@@ -356,7 +365,7 @@ func TestServiceRouteMatrixAndDesktopRemainsOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	ac.mu.Unlock()
-	serviceMux := newServiceMux(ac)
+	serviceMux := newTestServiceMux(t, ac)
 
 	unauthorized := httptest.NewRequest(http.MethodGet, "http://report.example/api/status", nil)
 	unauthorized.RemoteAddr = "127.0.0.1:50000"
@@ -439,7 +448,7 @@ func TestDeviceCookieSecureOnlyForHTTPS(t *testing.T) {
 	httpsRequest.Header.Set("X-Forwarded-For", "203.0.113.60")
 	httpsRequest.Header.Set("X-Forwarded-Proto", "https")
 	httpsResult := httptest.NewRecorder()
-	newServiceMux(ac).ServeHTTP(httpsResult, httpsRequest)
+	newTestServiceMux(t, ac).ServeHTTP(httpsResult, httpsRequest)
 	if cookie := httpsResult.Header().Get("Set-Cookie"); !strings.Contains(cookie, "Secure") {
 		t.Fatalf("HTTPS device cookie missing Secure: %q", cookie)
 	}
@@ -447,7 +456,7 @@ func TestDeviceCookieSecureOnlyForHTTPS(t *testing.T) {
 	httpRequest := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/access/status", nil)
 	httpRequest.RemoteAddr = "127.0.0.1:50000"
 	httpResult := httptest.NewRecorder()
-	newServiceMux(ac).ServeHTTP(httpResult, httpRequest)
+	newTestServiceMux(t, ac).ServeHTTP(httpResult, httpRequest)
 	if cookie := httpResult.Header().Get("Set-Cookie"); strings.Contains(cookie, "Secure") {
 		t.Fatalf("local HTTP device cookie unexpectedly Secure: %q", cookie)
 	}
@@ -474,7 +483,7 @@ func TestRevokedApprovalIsReportedAsRevokedToVisitor(t *testing.T) {
 	request.Header.Set("X-Forwarded-Proto", "https")
 	request.AddCookie(&http.Cookie{Name: deviceCookieName, Value: deviceToken})
 	result := httptest.NewRecorder()
-	newServiceMux(ac).ServeHTTP(result, request)
+	newTestServiceMux(t, ac).ServeHTTP(result, request)
 	if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"status":"revoked"`) {
 		t.Fatalf("revoked status response = %d %s", result.Code, result.Body.String())
 	}

@@ -18,6 +18,7 @@
     </div>
     <div class="web-actions">
       <span id="updateTime" class="web-sync">CONNECTING</span>
+      <button id="feedbackJumpBtn" class="web-btn" type="button">留言</button>
       <button id="refreshBtn" class="web-btn" type="button">&#21047;&#26032;</button>
       <button id="exportBtn" class="web-btn web-desktop-only" type="button">Excel</button>
     </div>
@@ -129,6 +130,32 @@
         </table>
       </div>
     </section>
+
+    <section id="feedbackPanel" class="web-panel web-feedback-panel">
+      <div class="web-panel-head">
+        <div>
+          <h2>建议留言</h2>
+          <div class="web-filter-summary">写下使用建议。留言和管理员回复对所有已授权用户可见。</div>
+        </div>
+        <span id="feedbackMeta" class="web-sync">-</span>
+      </div>
+      <div class="web-feedback-layout">
+        <form id="feedbackForm" class="web-feedback-compose">
+          <label for="feedbackContent">我的建议</label>
+          <textarea id="feedbackContent" maxlength="500" rows="5" required placeholder="例如：希望增加某项筛选，或说明遇到的问题。"></textarea>
+          <div class="web-feedback-compose-foot">
+            <span id="feedbackCount">0/500</span>
+            <button id="feedbackSubmit" class="web-btn web-feedback-submit" type="submit">发布留言</button>
+          </div>
+          <p>留言将使用访问申请中的姓名展示，请勿填写敏感信息。</p>
+          <div id="feedbackNotice" class="web-feedback-notice" role="status" aria-live="polite" hidden></div>
+        </form>
+        <div>
+          <div id="feedbackList" class="web-feedback-list"></div>
+          <button id="feedbackLoadMore" class="web-btn web-feedback-load" type="button" hidden>查看更多留言</button>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div id="loading" class="web-loading">&#21152;&#36733;&#25968;&#25454;&#20013;...</div>
@@ -144,6 +171,9 @@
     let rankingData = [];
     let filteredData = [];
     let dataLoadMessage = "";
+    let feedbackEntries = [];
+    let feedbackPage = 0;
+    let feedbackTotal = 0;
     const fixedRankMedia = window.matchMedia("(min-width: 721px)");
 
     const el = id => document.getElementById(id);
@@ -177,9 +207,71 @@
     };
     async function fetchJSON(url, options) {
       const response = await fetch(url, options);
-      if (response.ok) return await response.json();
-      const text = await response.text();
-      throw new Error(text.trim() || `请求失败 (${response.status})`);
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) return data;
+      throw new Error(data.message || `请求失败 (${response.status})`);
+    }
+
+    function feedbackNode(tag, className, value) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (value !== undefined) node.textContent = value;
+      return node;
+    }
+
+    function formatFeedbackTime(value) {
+      return value ? new Date(value).toLocaleString("zh-CN", {hour12: false}) : "-";
+    }
+
+    function setFeedbackNotice(message, kind = "info") {
+      const notice = el("feedbackNotice");
+      notice.textContent = message;
+      notice.className = `web-feedback-notice is-${kind}`;
+      notice.hidden = !message;
+    }
+
+    function renderFeedback() {
+      const list = el("feedbackList");
+      list.replaceChildren();
+      el("feedbackMeta").textContent = `共 ${feedbackTotal} 条`;
+      if (!feedbackEntries.length) {
+        const empty = feedbackNode("div", "web-feedback-empty");
+        empty.append(feedbackNode("strong", "", "还没有留言"), feedbackNode("p", "", "欢迎留下第一条使用建议。"));
+        list.append(empty);
+      }
+      for (const item of feedbackEntries) {
+        const card = feedbackNode("article", "web-feedback-card");
+        const head = feedbackNode("div", "web-feedback-head");
+        head.append(feedbackNode("strong", "", item.author || "已授权用户"), feedbackNode("time", "", formatFeedbackTime(item.created_at)));
+        card.append(head, feedbackNode("p", "web-feedback-content", item.content));
+        if (item.reply) {
+          const reply = feedbackNode("div", "web-feedback-reply");
+          const replyHead = feedbackNode("div", "web-feedback-reply-head");
+          replyHead.append(feedbackNode("strong", "", "管理员回复"), feedbackNode("time", "", formatFeedbackTime(item.replied_at)));
+          reply.append(replyHead, feedbackNode("p", "", item.reply));
+          card.append(reply);
+        }
+        list.append(card);
+      }
+      el("feedbackLoadMore").hidden = feedbackEntries.length >= feedbackTotal;
+    }
+
+    async function loadFeedback(reset = false) {
+      const button = el("feedbackLoadMore");
+      button.disabled = true;
+      const page = reset ? 1 : feedbackPage + 1;
+      try {
+        const data = await fetchJSON(`/api/feedback?page=${page}&page_size=20`);
+        const entries = Array.isArray(data.feedback) ? data.feedback : [];
+        feedbackEntries = reset ? entries : feedbackEntries.concat(entries);
+        feedbackPage = page;
+        feedbackTotal = data.total || 0;
+        renderFeedback();
+      } catch (error) {
+        setFeedbackNotice(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
     }
 
     async function loadIntervals() {
@@ -365,6 +457,32 @@
     el("fixedRankCheckbox").addEventListener("change", sortAndRender);
     el("excessCheckbox").addEventListener("change", applyFilters);
     el("clearFiltersBtn").addEventListener("click", clearFilters);
+    el("feedbackJumpBtn").addEventListener("click", () => el("feedbackPanel").scrollIntoView({behavior: "smooth", block: "start"}));
+    el("feedbackContent").addEventListener("input", () => {
+      el("feedbackCount").textContent = `${[...el("feedbackContent").value].length}/500`;
+    });
+    el("feedbackLoadMore").addEventListener("click", () => loadFeedback(false));
+    el("feedbackForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const button = el("feedbackSubmit");
+      button.disabled = true;
+      setFeedbackNotice("");
+      try {
+        await fetchJSON("/api/feedback", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({content: el("feedbackContent").value})
+        });
+        el("feedbackContent").value = "";
+        el("feedbackCount").textContent = "0/500";
+        await loadFeedback(true);
+        setFeedbackNotice("留言已发布。", "success");
+      } catch (error) {
+        setFeedbackNotice(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
     fixedRankMedia.addEventListener("change", sortAndRender);
     el("refreshBtn").addEventListener("click", async () => {
       try {
@@ -379,7 +497,7 @@
     });
 
     document.addEventListener("DOMContentLoaded", async () => {
-      await Promise.all([loadIntervals(), loadData()]);
+      await Promise.all([loadIntervals(), loadData(), loadFeedback(true)]);
     });
   </script>
 </body>

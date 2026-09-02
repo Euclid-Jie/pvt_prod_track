@@ -61,6 +61,7 @@
         <button class="is-active" data-tab="applications" type="button">申请记录</button>
         <button data-tab="allowlist" type="button">白名单</button>
 		<button data-tab="visits" type="button">访问历史</button>
+        <button data-tab="feedback" type="button">建议留言</button>
         <button data-tab="data" type="button">数据更新</button>
         <button data-tab="security" type="button">安全设置</button>
       </nav>
@@ -91,6 +92,15 @@
 		</div>
 		<div id="visitList" class="admin-record-list"></div>
 	  </section>
+
+      <section id="feedbackTab" class="admin-panel" hidden>
+        <div class="admin-panel-head">
+          <div><h2>建议留言</h2><p>回复会立即公开显示。保存新回复会覆盖原回复；删除后无法恢复。</p></div>
+          <span id="adminFeedbackMeta" class="web-sync">-</span>
+        </div>
+        <div id="adminFeedbackList" class="admin-record-list"></div>
+        <button id="adminFeedbackLoadMore" class="access-secondary admin-load-more" type="button" hidden>查看更多留言</button>
+      </section>
 
       <section id="dataTab" class="admin-panel" hidden>
         <div class="admin-panel-head">
@@ -131,6 +141,9 @@
     let applications = [];
     let allowlist = [];
 	let visits = [];
+    let feedback = [];
+    let feedbackPage = 1;
+    let feedbackTotal = 0;
     let dataSettings = null;
 
     async function api(url, options = {}) {
@@ -304,6 +317,41 @@
 	  }
 	}
 
+    function renderFeedback() {
+      const list = el("adminFeedbackList");
+      list.replaceChildren();
+      el("adminFeedbackMeta").textContent = `共 ${feedbackTotal} 条`;
+      if (!feedback.length) {
+        list.append(emptyState("还没有建议留言"));
+      }
+      for (const item of feedback) {
+        const replied = Boolean(item.reply);
+        const card = make("article", `admin-record ${replied ? "is-approved" : ""}`);
+        const head = make("div", "admin-record-head");
+        const identity = make("div", "admin-record-identity");
+        identity.append(make("h3", "", item.author || "已授权用户"), make("span", `admin-status ${replied ? "is-approved" : ""}`, replied ? "已回复" : "待回复"));
+        head.append(identity, make("time", "", formatTime(item.created_at)));
+        const message = make("div", "admin-message");
+        message.append(make("span", "", "公开留言"), make("p", "", item.content));
+        const reply = make("textarea", "admin-feedback-reply");
+        reply.maxLength = 1000;
+        reply.rows = 4;
+        reply.placeholder = "输入公开回复";
+        reply.value = item.reply || "";
+        const actions = make("div", "admin-record-actions");
+        const save = make("button", "access-primary is-compact", replied ? "更新回复" : "发布回复");
+        save.type = "button";
+        save.addEventListener("click", () => saveFeedbackReply(item.id, reply.value));
+        const remove = make("button", "access-danger", "删除留言");
+        remove.type = "button";
+        remove.addEventListener("click", () => deleteFeedback(item.id));
+        actions.append(save, remove);
+        card.append(head, message, reply, actions);
+        list.append(card);
+      }
+      el("adminFeedbackLoadMore").hidden = feedback.length >= feedbackTotal;
+    }
+
     function updateStats() {
       el("pendingCount").textContent = applications.filter(item => item.status === "pending").length;
       el("historyCount").textContent = applications.filter(item => item.status !== "pending").length;
@@ -318,11 +366,14 @@
     async function loadRecords() {
       el("refreshAdminButton").disabled = true;
       try {
-		const [appData, allowData, visitData] = await Promise.all([api("/api/admin/applications?status=all"), api("/api/admin/allowlist"), api("/api/admin/visits")]);
+		const [appData, allowData, visitData, feedbackData] = await Promise.all([api("/api/admin/applications?status=all"), api("/api/admin/allowlist"), api("/api/admin/visits"), api("/api/admin/feedback?page=1&page_size=100")]);
         applications = appData.applications || [];
         allowlist = allowData.allowlist || [];
 		visits = visitData.visits || [];
-		renderApplications(); renderAllowlist(); renderVisits(); updateStats();
+        feedback = feedbackData.feedback || [];
+        feedbackPage = 1;
+        feedbackTotal = feedbackData.total || 0;
+		renderApplications(); renderAllowlist(); renderVisits(); renderFeedback(); updateStats();
       } catch (error) {
         setNotice(error.message, "error");
       } finally {
@@ -374,6 +425,56 @@
       catch (error) { setNotice(error.message, "error"); }
     }
 
+    async function loadMoreFeedback() {
+      const button = el("adminFeedbackLoadMore");
+      button.disabled = true;
+      try {
+        const nextPage = feedbackPage + 1;
+        const data = await api(`/api/admin/feedback?page=${nextPage}&page_size=100`);
+        feedback = feedback.concat(data.feedback || []);
+        feedbackPage = nextPage;
+        feedbackTotal = data.total || 0;
+        renderFeedback();
+      } catch (error) {
+        setNotice(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function reloadFeedback() {
+      try {
+        const data = await api("/api/admin/feedback?page=1&page_size=100");
+        feedback = data.feedback || [];
+        feedbackPage = 1;
+        feedbackTotal = data.total || 0;
+        renderFeedback();
+      } catch (error) {
+        setNotice(error.message, "error");
+      }
+    }
+
+    async function saveFeedbackReply(id, reply) {
+      try {
+        await api(`/api/admin/feedback/${encodeURIComponent(id)}/reply`, jsonOptions("POST", {reply}));
+        setNotice("回复已公开发布。", "success");
+        await reloadFeedback();
+      } catch (error) {
+        setNotice(error.message, "error");
+      }
+    }
+
+    async function deleteFeedback(id) {
+      if (!confirm("永久删除这条留言及其回复？")) return;
+      try {
+        await api(`/api/admin/feedback/${encodeURIComponent(id)}`, {method: "DELETE"});
+        setNotice("留言已删除。", "success");
+        await reloadFeedback();
+      } catch (error) {
+        setNotice(error.message, "error");
+      }
+    }
+
     el("setupForm").addEventListener("submit", async event => {
       event.preventDefault(); setNotice("");
       if (el("setupPassword").value !== el("setupPasswordConfirm").value) { setNotice("两次输入的管理密码不一致。", "error"); return; }
@@ -422,9 +523,10 @@
     el("statusFilter").addEventListener("change", renderApplications);
 	el("visitSearch").addEventListener("input", renderVisits);
 	el("visitStatusFilter").addEventListener("change", renderVisits);
+    el("adminFeedbackLoadMore").addEventListener("click", loadMoreFeedback);
     document.querySelectorAll(".admin-tabs button").forEach(button => button.addEventListener("click", () => {
       document.querySelectorAll(".admin-tabs button").forEach(item => item.classList.toggle("is-active", item === button));
-      for (const name of ["applications", "allowlist", "visits", "data", "security"]) el(`${name}Tab`).hidden = name !== button.dataset.tab;
+      for (const name of ["applications", "allowlist", "visits", "feedback", "data", "security"]) el(`${name}Tab`).hidden = name !== button.dataset.tab;
     }));
 
     document.addEventListener("DOMContentLoaded", async () => {

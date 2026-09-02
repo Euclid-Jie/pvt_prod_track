@@ -20,7 +20,7 @@
 - GaiaDB：`gaiadbnn817o.primary.gaiadb.bj.baidubce.com:3306`，在 zeus 上解析为 VPC 内网地址
 - 管理入口：通过 SSH 隧道访问，不向公网开放
 
-`config.json`、`access_control.json` 和云端运行时节假日文件属于生产状态。普通代码发布不得覆盖它们，也不得提交到 Git。
+`config.json`、`access_control.json`、`feedback.json` 和云端运行时节假日文件属于生产状态。普通代码发布不得覆盖它们，也不得提交到 Git。
 
 ## 代码更新与发布
 
@@ -122,7 +122,7 @@ systemctl start pvt-prod-track.service
 systemctl is-active pvt-prod-track.service
 ```
 
-代码回滚不得回滚 `access_control.json`，否则可能丢失上线后新增的审批和撤销记录。
+代码回滚不得回滚 `access_control.json` 或 `feedback.json`，否则可能丢失上线后新增的审批、留言和回复记录。
 
 ## 故障处理
 
@@ -306,12 +306,13 @@ ssh zeus "sha256sum /var/lib/pvt-prod-track/Chinese_special_holiday.txt"
 
 紧急情况下如果先在云端管理页面上传，事后必须把云端文件拉回本地，同时更新根目录和 `go/assets`，再提交 Git，避免下一次构建重新嵌入旧版本。
 
-`intervals.json` 遵循同样的根目录/嵌入资源同步原则。`config.json` 和 `access_control.json` 只属于云端运行状态，绝不能复制到 `go/assets` 或提交到 Git。
+`intervals.json` 遵循同样的根目录/嵌入资源同步原则。`config.json`、`access_control.json` 和 `feedback.json` 只属于云端运行状态，绝不能复制到 `go/assets` 或提交到 Git。
 
 ## 生产数据备份与安全边界
 
 - `/var/lib/pvt-prod-track/config.json` 包含数据库凭据，权限必须为 `0600`。
 - `/var/lib/pvt-prod-track/access_control.json` 保存管理员密码哈希、申请记录和设备/IP 白名单，云端是唯一生产数据源。
+- `/var/lib/pvt-prod-track/feedback.json` 保存建议留言和管理员回复，`feedback.json.bak` 是前一次成功写入的版本；两者必须随生产状态备份。
 - 迁移或备份运行数据只能通过 SSH/SCP，不能放入代码仓库、聊天记录或普通共享目录。
 - 修改 Nginx 前先备份配置并运行 `nginx -t`；测试成功后再 reload。
 - 普通发布只替换应用二进制，不改 GaiaDB 地址、Nginx 上游或访问控制状态。

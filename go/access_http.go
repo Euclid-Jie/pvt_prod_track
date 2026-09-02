@@ -53,9 +53,10 @@ type accessVisitView struct {
 	AllowlistActive bool      `json:"allowlist_active"`
 }
 
-func newServiceMux(ac *accessControl) http.Handler {
+func newServiceMux(ac *accessControl, feedbackStore *feedbackStore) http.Handler {
 	appMux := newAppMux("assets/templates/service.html")
 	mux := http.NewServeMux()
+	feedback := &feedbackHTTP{access: ac, store: feedbackStore}
 
 	mux.Handle("/static/", appMux)
 	mux.Handle("/icon.ico", appMux)
@@ -74,6 +75,8 @@ func newServiceMux(ac *accessControl) http.Handler {
 	}))
 	mux.Handle("GET /api/access/status", http.HandlerFunc(ac.handleAccessStatus))
 	mux.Handle("POST /api/access/applications", http.HandlerFunc(ac.handleCreateApplication))
+	mux.Handle("GET /api/feedback", ac.requireViewer(http.HandlerFunc(feedback.handleList)))
+	mux.Handle("POST /api/feedback", ac.requireViewer(http.HandlerFunc(feedback.handleCreate)))
 
 	localPage := func(path string) http.Handler {
 		return ac.directLocalOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +96,9 @@ func newServiceMux(ac *accessControl) http.Handler {
 	mux.Handle("DELETE /api/admin/applications/{id}", ac.requireAdmin(http.HandlerFunc(ac.handleDeleteApplication)))
 	mux.Handle("GET /api/admin/allowlist", ac.requireAdmin(http.HandlerFunc(ac.handleListAllowlist)))
 	mux.Handle("GET /api/admin/visits", ac.requireAdmin(http.HandlerFunc(ac.handleListVisits)))
+	mux.Handle("GET /api/admin/feedback", ac.requireAdmin(http.HandlerFunc(feedback.handleList)))
+	mux.Handle("POST /api/admin/feedback/{id}/reply", ac.requireAdmin(http.HandlerFunc(feedback.handleReply)))
+	mux.Handle("DELETE /api/admin/feedback/{id}", ac.requireAdmin(http.HandlerFunc(feedback.handleDelete)))
 	mux.Handle("GET /api/admin/data-settings", ac.requireAdmin(http.HandlerFunc(handleAdminDataSettings)))
 	mux.Handle("POST /api/admin/data-settings", ac.requireAdmin(http.HandlerFunc(handleAdminDataSettings)))
 	mux.Handle("POST /api/admin/allowlist/{id}/revoke", ac.requireAdmin(http.HandlerFunc(ac.handleRevokeAllowEntry)))

@@ -22,9 +22,10 @@ go -C go build -trimpath -o "$env:TEMP\pvt_prod_track_web" .
 
 - `config.json`：使用 GaiaDB 内网地址，保留数据库账号、密码和 `last_day`。
 - `access_control.json`：从已停止的原生产服务一次性迁移，之后以云端文件为唯一生产状态。
+- `feedback.json`：建议留言和管理员回复。首次启用可以不存在；产生留言后必须与访问控制状态一起备份和迁移。
 - `Chinese_special_holiday.txt`：仅在存在本地覆盖时迁移，否则使用二进制内嵌版本。
 
-目录权限为 `0700`，配置和访问控制文件权限为 `0600`，所有者为 `pvt-prod-track`。这些文件不得提交到 Git。
+目录权限为 `0700`，配置、访问控制和留言文件权限为 `0600`，所有者为 `pvt-prod-track`。这些文件不得提交到 Git。
 systemd 通过 `-data-dir /var/lib/pvt-prod-track` 显式指定该目录；不要依赖进程启动目录推断生产配置位置。
 
 ## systemd
@@ -55,4 +56,4 @@ ssh -L 5503:127.0.0.1:5003 zeus
 
 先在服务器回环地址验证访问控制、数据库数据、策略列表和 Excel 导出。然后将 Nginx 上游从 `127.0.0.1:25003` 改为 `127.0.0.1:5003`，执行 `nginx -t`，成功后 reload。
 
-若切流失败，将 Nginx 上游恢复为 `127.0.0.1:25003` 并恢复原本地服务。若云端已经发生审批变更，回滚前先把云端最新 `access_control.json` 安全复制回原服务。
+若切流失败，将 Nginx 上游恢复为 `127.0.0.1:25003` 并恢复原本地服务。若云端已经发生审批或留言变更，回滚前先把云端最新 `access_control.json` 和 `feedback.json` 安全复制回原服务。

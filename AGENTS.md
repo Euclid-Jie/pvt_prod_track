@@ -37,6 +37,7 @@ go -C go build -trimpath -o "$env:TEMP\pvt_prod_track_web" .
 ```bash
 cp templates/index.html go/assets/templates/index.html
 cp templates/service.html go/assets/templates/service.html
+cp templates/admin.html go/assets/templates/admin.html
 cp static/style.css go/assets/static/style.css
 ```
 
@@ -44,6 +45,8 @@ cp static/style.css go/assets/static/style.css
 
 **Go source** (`go/`):
 - `main.go` — HTTP server, service entry, all route handlers, config management
+- `access.go` / `access_http.go` — Web service access approval, administrator sessions, and protected route middleware
+- `feedback.go` / `feedback_http.go` — service-only public suggestions, administrator replies/deletion, and local persistence
 - `desktop_windows.go` — Windows WebView2 desktop window
 - `desktop_nonwindows.go` — non-Windows desktop-mode guard
 - `data.go` — server-side pivot SQL, in-memory cache (`dataCache`), DB connection pools
@@ -57,6 +60,7 @@ cp static/style.css go/assets/static/style.css
 **Embedded assets** (`go/assets/`) — copied from project root before build:
 - `templates/index.html` ← from `templates/index.html`
 - `templates/service.html` ← from `templates/service.html`
+- `templates/admin.html` ← from `templates/admin.html`
 - `static/style.css` ← from `static/style.css`
 - `intervals.json` ← from `intervals.json`
 - `Chinese_special_holiday.txt` ← from `Chinese_special_holiday.txt`
@@ -88,7 +92,7 @@ At runtime, `initDataDir()` finds a writable directory:
 1. Tries exe directory (works when not in `Program Files`)
 2. Falls back to `%APPDATA%\pvt_prod_track\`
 
-Files written there: `config.json`, `Chinese_special_holiday.txt` (if uploaded via settings).
+Files written there: `config.json`, `access_control.json`, `feedback.json`, and `Chinese_special_holiday.txt` (if uploaded via settings). The service keeps the previous successful `feedback.json` as `feedback.json.bak` after a write.
 
 `config.json` schema:
 ```json
@@ -154,8 +158,10 @@ This key is used to look up rows in the absolute and excess pivot maps in Go (`k
 | `/api/refresh` | POST | Clear cache + reload |
 | `/api/export/excel` | GET | Excel download (one sheet per strategy; manager, scale, strategy, and interval returns only) |
 | `/api/status` | GET | `{"configured": bool}` |
+| `/api/feedback?page=N&page_size=N` | GET | Public suggestion list for approved service viewers; page size is capped at 100 |
+| `/api/feedback` | POST | Create a suggestion as the approved viewer identity; body is limited and rate-limited |
 
-服务版另有管理员专用的 `GET/POST /api/admin/data-settings`。它只返回和修改 `last_day` 及派生区间，不向浏览器返回数据库连接信息；POST 在写入配置前使用候选区间执行真实查询，查询失败或无可展示产品时保持当前线上配置和缓存不变。
+服务版另有管理员专用的 `GET/POST /api/admin/data-settings`。它只返回和修改 `last_day` 及派生区间，不向浏览器返回数据库连接信息；POST 在写入配置前使用候选区间执行真实查询，查询失败或无可展示产品时保持当前线上配置和缓存不变。留言管理使用 `GET /api/admin/feedback`、`POST /api/admin/feedback/{id}/reply` 和 `DELETE /api/admin/feedback/{id}`，沿用本机直连、管理员会话和同源检查。
 
 ## Frontend
 
@@ -163,6 +169,8 @@ This key is used to look up rows in the absolute and excess pivot maps in Go (`k
 `templates/service.html` — browser/mobile page.
 
 Desktop and web layouts must remain isolated. Do not change `pvt_prod_track.exe` behavior when updating `pvt_prod_track_web.exe`.
+
+The service page includes a suggestion board below the product table. Approved viewers can publish up to 500 characters under the name from their active device/IP allowlist entry. The board is paginated, renders content as text, and shows administrator replies to every approved viewer. The administrator page can publish or replace one reply per suggestion and permanently delete a suggestion.
 
 The browser/mobile table starts with a rank column formatted as
 `current_index/filtered_total` (for example, `1/93`). The value must be computed

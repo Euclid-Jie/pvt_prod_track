@@ -5,5 +5,7 @@ __pycache__
 config.json
 access_control.json
 access_control.json.bak
+feedback.json
+feedback.json.bak
 *.exe
 .claude/

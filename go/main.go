@@ -99,7 +99,7 @@ func resolveDataDir(exePath string) string {
 
 func main() {
 	listenAddr := flag.String("listen", "127.0.0.1:5003", "listen address for service mode")
-	dataDirFlag := flag.String("data-dir", "", "data directory for config and access-control files")
+	dataDirFlag := flag.String("data-dir", "", "data directory for runtime state files")
 	resetAdmin := flag.Bool("reset-admin", false, "reset the web service administrator password")
 	flag.Parse()
 
@@ -142,7 +142,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		startServiceServer(*listenAddr, access)
+		feedback, err := newFeedbackStore(dataDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		startServiceServer(*listenAddr, access, feedback)
 		return
 	}
 	startDesktopApp()
@@ -153,8 +157,8 @@ func isWebServiceExe(exePath string) bool {
 	return base == "pvt_prod_track_web.exe" || base == "pvt_prod_track_web"
 }
 
-func startServiceServer(addr string, access *accessControl) {
-	srv := &http.Server{Addr: addr, Handler: newServiceMux(access)}
+func startServiceServer(addr string, access *accessControl, feedback *feedbackStore) {
+	srv := &http.Server{Addr: addr, Handler: newServiceMux(access, feedback)}
 	log.Printf("service server listening on http://%s", addr)
 	log.Fatal(srv.ListenAndServe())
 }
