@@ -1403,6 +1403,10 @@ tbody tr:hover { background: var(--highlight-bg); }
     cursor: pointer;
     font-size: 12px;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
 }
 
 .web-btn:hover {
@@ -1683,8 +1687,61 @@ tbody tr:hover { background: var(--highlight-bg); }
 
 .web-feedback-layout {
     display: grid;
-    grid-template-columns: minmax(260px, .62fr) minmax(0, 1.38fr);
-    gap: 18px;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.web-feedback-shell {
+    width: min(100%, 1040px);
+    margin: 0 auto;
+    padding: 46px 24px 64px;
+}
+
+.web-feedback-intro {
+    max-width: 620px;
+    margin-bottom: 28px;
+}
+
+.web-feedback-kicker {
+    margin: 0 0 8px;
+    color: var(--web-accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+}
+
+.web-feedback-intro h2 {
+    margin: 0;
+    color: var(--web-text);
+    font-size: 28px;
+    line-height: 1.25;
+}
+
+.web-feedback-intro > p:last-child {
+    margin: 10px 0 0;
+    color: var(--web-muted);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.web-feedback-stream {
+    min-width: 0;
+}
+
+.web-feedback-stream-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 10px;
+}
+
+.web-feedback-stream-head h2 {
+    margin: 0;
+    color: var(--web-text);
+    font-size: 14px;
+    font-weight: 650;
 }
 
 .web-feedback-compose {
@@ -1695,6 +1752,8 @@ tbody tr:hover { background: var(--highlight-bg); }
     border: 1px solid var(--web-border-muted);
     border-radius: 6px;
     background: var(--web-surface-2);
+    position: sticky;
+    top: 78px;
 }
 
 .web-feedback-compose label {
@@ -1855,6 +1914,10 @@ tbody tr:hover { background: var(--highlight-bg); }
     .web-feedback-layout {
         grid-template-columns: 1fr;
     }
+
+    .web-feedback-compose {
+        position: static;
+    }
 }
 
 @media (max-width: 720px) {
@@ -1878,6 +1941,18 @@ tbody tr:hover { background: var(--highlight-bg); }
     .web-shell {
         gap: 10px;
         padding: 10px;
+    }
+
+    .web-feedback-shell {
+        padding: 26px 12px 40px;
+    }
+
+    .web-feedback-intro {
+        margin-bottom: 20px;
+    }
+
+    .web-feedback-intro h2 {
+        font-size: 23px;
     }
 
     .web-stats {

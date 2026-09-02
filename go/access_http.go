@@ -75,6 +75,10 @@ func newServiceMux(ac *accessControl, feedbackStore *feedbackStore) http.Handler
 	}))
 	mux.Handle("GET /api/access/status", http.HandlerFunc(ac.handleAccessStatus))
 	mux.Handle("POST /api/access/applications", http.HandlerFunc(ac.handleCreateApplication))
+	mux.Handle("GET /feedback", ac.requireViewer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		serveTemplate(w, "assets/templates/feedback.html")
+	})))
 	mux.Handle("GET /api/feedback", ac.requireViewer(http.HandlerFunc(feedback.handleList)))
 	mux.Handle("POST /api/feedback", ac.requireViewer(http.HandlerFunc(feedback.handleCreate)))
 

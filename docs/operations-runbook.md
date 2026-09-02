@@ -38,6 +38,7 @@ git diff --check
 ```powershell
 Copy-Item templates\index.html go\assets\templates\index.html
 Copy-Item templates\service.html go\assets\templates\service.html
+Copy-Item templates\feedback.html go\assets\templates\feedback.html
 Copy-Item templates\access.html go\assets\templates\access.html
 Copy-Item templates\admin.html go\assets\templates\admin.html
 Copy-Item static\style.css go\assets\static\style.css

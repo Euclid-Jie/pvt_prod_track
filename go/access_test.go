@@ -386,6 +386,38 @@ func TestServiceRouteMatrixAndDesktopRemainsOpen(t *testing.T) {
 		t.Fatalf("approved /api/status = %d, want 200", approvedResult.Code)
 	}
 
+	unauthorizedFeedbackPage := httptest.NewRequest(http.MethodGet, "http://report.example/feedback", nil)
+	unauthorizedFeedbackPage.RemoteAddr = "127.0.0.1:50000"
+	unauthorizedFeedbackPage.Header.Set("X-Forwarded-For", "203.0.113.51")
+	unauthorizedFeedbackResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(unauthorizedFeedbackResult, unauthorizedFeedbackPage)
+	if unauthorizedFeedbackResult.Code != http.StatusFound || unauthorizedFeedbackResult.Header().Get("Location") != "/access" {
+		t.Fatalf("unauthorized /feedback = %d location %q, want 302 /access", unauthorizedFeedbackResult.Code, unauthorizedFeedbackResult.Header().Get("Location"))
+	}
+
+	approvedFeedbackPage := httptest.NewRequest(http.MethodGet, "http://report.example/feedback", nil)
+	approvedFeedbackPage.RemoteAddr = "127.0.0.1:50000"
+	approvedFeedbackPage.Header.Set("X-Forwarded-For", "203.0.113.50")
+	approvedFeedbackPage.AddCookie(&http.Cookie{Name: deviceCookieName, Value: deviceToken})
+	approvedFeedbackResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(approvedFeedbackResult, approvedFeedbackPage)
+	if approvedFeedbackResult.Code != http.StatusOK || !strings.Contains(approvedFeedbackResult.Body.String(), "让周报更好用") {
+		t.Fatalf("approved /feedback = %d body %q, want feedback page", approvedFeedbackResult.Code, approvedFeedbackResult.Body.String())
+	}
+
+	approvedReportPage := httptest.NewRequest(http.MethodGet, "http://report.example/", nil)
+	approvedReportPage.RemoteAddr = "127.0.0.1:50000"
+	approvedReportPage.Header.Set("X-Forwarded-For", "203.0.113.50")
+	approvedReportPage.AddCookie(&http.Cookie{Name: deviceCookieName, Value: deviceToken})
+	approvedReportResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(approvedReportResult, approvedReportPage)
+	if approvedReportResult.Code != http.StatusOK {
+		t.Fatalf("approved / = %d, want 200", approvedReportResult.Code)
+	}
+	if body := approvedReportResult.Body.String(); strings.Contains(body, "id=\"feedbackForm\"") || !strings.Contains(body, "href=\"/feedback\"") {
+		t.Fatalf("approved / feedback integration is incorrect")
+	}
+
 	accessPage := httptest.NewRequest(http.MethodGet, "http://report.example/access", nil)
 	accessPage.RemoteAddr = "127.0.0.1:50000"
 	accessPage.Header.Set("X-Forwarded-For", "203.0.113.50")
