@@ -161,7 +161,7 @@ This key is used to look up rows in the absolute and excess pivot maps in Go (`k
 | `/api/export/excel` | GET | Excel download (one sheet per strategy; manager, scale, strategy, and interval returns only) |
 | `/api/status` | GET | `{"configured": bool}` |
 | `/api/feedback?page=N&page_size=N` | GET | Public suggestion list for approved service viewers; page size is capped at 100 |
-| `/api/feedback` | POST | Create a suggestion as the approved viewer identity; body is limited and rate-limited |
+| `/api/feedback` | POST | Create a suggestion as the approved viewer identity; accepts `anonymous`, and remains body-limited and rate-limited |
 | `/feedback` | GET | Standalone suggestion page for approved service viewers |
 
 服务版另有管理员专用的 `GET/POST /api/admin/data-settings`。它只返回和修改 `last_day` 及派生区间，不向浏览器返回数据库连接信息；POST 在写入配置前使用候选区间执行真实查询，查询失败或无可展示产品时保持当前线上配置和缓存不变。留言管理使用 `GET /api/admin/feedback`、`POST /api/admin/feedback/{id}/reply` 和 `DELETE /api/admin/feedback/{id}`，沿用本机直连、管理员会话和同源检查。
@@ -174,7 +174,7 @@ This key is used to look up rows in the absolute and excess pivot maps in Go (`k
 
 Desktop and web layouts must remain isolated. Do not change `pvt_prod_track.exe` behavior when updating `pvt_prod_track_web.exe`.
 
-The service page links to a standalone suggestion board at `/feedback`. Approved viewers can publish up to 500 characters under the name from their active device/IP allowlist entry. The board is paginated, renders content as text, and shows administrator replies to every approved viewer. The administrator page can publish or replace one reply per suggestion and permanently delete a suggestion.
+The service page links to a standalone suggestion board at `/feedback`. Approved viewers can publish up to 500 characters and choose real-name or anonymous display. Anonymous entries hide the author from public responses while retaining the real identity for the local-only administrator view. The board is paginated, renders content as text, and shows administrator replies to every approved viewer. The administrator page can publish or replace one reply per suggestion and permanently delete a suggestion.
 
 The browser/mobile table starts with a rank column formatted as
 `current_index/filtered_total` (for example, `1/93`). The value must be computed

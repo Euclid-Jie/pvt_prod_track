@@ -326,10 +326,11 @@
       }
       for (const item of feedback) {
         const replied = Boolean(item.reply);
+        const author = item.anonymous ? `${item.author || "已授权用户"}（匿名提交）` : (item.author || "已授权用户");
         const card = make("article", `admin-record ${replied ? "is-approved" : ""}`);
         const head = make("div", "admin-record-head");
         const identity = make("div", "admin-record-identity");
-        identity.append(make("h3", "", item.author || "已授权用户"), make("span", `admin-status ${replied ? "is-approved" : ""}`, replied ? "已回复" : "待回复"));
+        identity.append(make("h3", "", author), make("span", `admin-status ${replied ? "is-approved" : ""}`, replied ? "已回复" : "待回复"));
         head.append(identity, make("time", "", formatTime(item.created_at)));
         const message = make("div", "admin-message");
         message.append(make("span", "", "公开留言"), make("p", "", item.content));

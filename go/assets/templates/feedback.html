@@ -32,11 +32,18 @@
       <form id="feedbackForm" class="web-feedback-compose">
         <label for="feedbackContent">写下建议</label>
         <textarea id="feedbackContent" maxlength="500" rows="7" required placeholder="例如：希望增加某项筛选，或说明遇到的问题。"></textarea>
+        <fieldset class="web-feedback-identity">
+          <legend>提交方式</legend>
+          <div>
+            <label><input id="feedbackRealName" type="radio" name="feedbackIdentity" value="real" checked><span>实名</span></label>
+            <label><input id="feedbackAnonymous" type="radio" name="feedbackIdentity" value="anonymous"><span>匿名</span></label>
+          </div>
+        </fieldset>
         <div class="web-feedback-compose-foot">
           <span id="feedbackCount">0/500</span>
           <button id="feedbackSubmit" class="web-btn web-feedback-submit" type="submit">发布留言</button>
         </div>
-        <p>将使用访问申请中的姓名展示，请勿填写敏感信息。</p>
+        <p>匿名仅对其他浏览者隐藏，管理员仍可看到提交人。请勿填写敏感信息。</p>
         <div id="feedbackNotice" class="web-feedback-notice" role="status" aria-live="polite" hidden></div>
       </form>
 
@@ -140,7 +147,10 @@
         await fetchJSON("/api/feedback", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({content: el("feedbackContent").value})
+          body: JSON.stringify({
+            content: el("feedbackContent").value,
+            anonymous: el("feedbackAnonymous").checked
+          })
         });
         el("feedbackContent").value = "";
         el("feedbackCount").textContent = "0/500";

@@ -1762,6 +1762,55 @@ tbody tr:hover { background: var(--highlight-bg); }
     font-weight: 650;
 }
 
+.web-feedback-identity {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.web-feedback-identity legend {
+    margin-bottom: 7px;
+    color: var(--web-text);
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.web-feedback-identity > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 3px;
+    border: 1px solid var(--web-border);
+    border-radius: 6px;
+    background: var(--web-surface);
+}
+
+.web-feedback-identity label {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.web-feedback-identity label:has(input:checked) {
+    background: var(--web-accent-soft);
+    color: #0550ae;
+}
+
+.web-feedback-identity input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--web-accent);
+}
+
 .web-feedback-compose textarea,
 .admin-feedback-reply {
     width: 100%;

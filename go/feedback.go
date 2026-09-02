@@ -28,6 +28,7 @@ type feedbackEntry struct {
 	ID        string     `json:"id"`
 	Author    string     `json:"author"`
 	AuthorKey string     `json:"author_key"`
+	Anonymous bool       `json:"anonymous,omitempty"`
 	Content   string     `json:"content"`
 	CreatedAt time.Time  `json:"created_at"`
 	Reply     string     `json:"reply,omitempty"`
@@ -160,7 +161,7 @@ func validateFeedbackReply(reply string) (string, error) {
 	return reply, nil
 }
 
-func (store *feedbackStore) create(author, authorKey, content string) (feedbackEntry, error) {
+func (store *feedbackStore) create(author, authorKey, content string, anonymous bool) (feedbackEntry, error) {
 	content, err := validateFeedbackContent(content)
 	if err != nil {
 		return feedbackEntry{}, err
@@ -192,6 +193,7 @@ func (store *feedbackStore) create(author, authorKey, content string) (feedbackE
 		ID:        "feedback_" + id,
 		Author:    author,
 		AuthorKey: authorKey,
+		Anonymous: anonymous,
 		Content:   content,
 		CreatedAt: now,
 	}
