@@ -158,7 +158,7 @@ This key is used to look up rows in the absolute and excess pivot maps in Go (`k
 | `/api/config` | GET/POST | Read/save `config.json` |
 | `/api/config/holiday` | POST | Upload holiday file (multipart) |
 | `/api/refresh` | POST | Clear cache + reload |
-| `/api/export/excel` | GET | Excel download (one sheet per strategy; strategies with excess data contain separate absolute/excess sections; manager, scale, strategy, and interval returns only) |
+| `/api/export/excel` | GET | Excel download (absolute sheet per strategy plus `{strategy}_超额` for eligible strategies; manager, scale, strategy, and interval returns only) |
 | `/api/status` | GET | `{"configured": bool}` |
 | `/api/feedback?page=N&page_size=N` | GET | Public suggestion list for approved service viewers; page size is capped at 100 |
 | `/api/feedback` | POST | Create a suggestion as the approved viewer identity; accepts `anonymous`, and remains body-limited and rate-limited |

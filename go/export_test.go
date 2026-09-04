@@ -44,7 +44,7 @@ func TestExportExcelGroupsByStrategyAndOmitsProductName(t *testing.T) {
 	}
 }
 
-func TestExportExcelAddsAbsoluteAndExcessSectionsForEligibleStrategy(t *testing.T) {
+func TestExportExcelAddsExcessSheetForEligibleStrategy(t *testing.T) {
 	var output bytes.Buffer
 	funds := []Fund{
 		{
@@ -64,20 +64,32 @@ func TestExportExcelAddsAbsoluteAndExcessSectionsForEligibleStrategy(t *testing.
 	}
 	defer workbook.Close()
 
-	sheet := "1000增强"
+	if got := workbook.GetSheetList(); len(got) != 2 || got[0] != "1000增强" || got[1] != "1000增强_超额" {
+		t.Fatalf("sheet list = %v, want [1000增强 1000增强_超额]", got)
+	}
 	for cell, want := range map[string]string{
-		"A1": "绝对收益", "A2": "管理人", "A3": "管理人A", "D3": "1.00", "A4": "中证1000指数", "D4": "8.00",
-		"A6": "超额收益", "A7": "管理人", "A8": "管理人A", "D8": "0.10", "E8": "0.20", "F8": "0.30", "G8": "0.40", "H8": "0.50", "I8": "0.60", "J8": "0.70",
+		"A1": "管理人", "A2": "管理人A", "D2": "1.00", "A3": "中证1000指数", "D3": "8.00",
 	} {
-		got, err := workbook.GetCellValue(sheet, cell)
+		got, err := workbook.GetCellValue("1000增强", cell)
 		if err != nil {
 			t.Fatalf("GetCellValue(%s): %v", cell, err)
 		}
 		if got != want {
-			t.Errorf("cell %s = %q, want %q", cell, got, want)
+			t.Errorf("absolute sheet cell %s = %q, want %q", cell, got, want)
 		}
 	}
-	if got, err := workbook.GetCellValue(sheet, "A9"); err != nil || got != "" {
-		t.Fatalf("benchmark index should be omitted from excess section, A9 = %q (err=%v)", got, err)
+	for cell, want := range map[string]string{
+		"A1": "管理人", "A2": "管理人A", "D2": "0.10", "E2": "0.20", "F2": "0.30", "G2": "0.40", "H2": "0.50", "I2": "0.60", "J2": "0.70",
+	} {
+		got, err := workbook.GetCellValue("1000增强_超额", cell)
+		if err != nil {
+			t.Fatalf("GetCellValue(%s): %v", cell, err)
+		}
+		if got != want {
+			t.Errorf("excess sheet cell %s = %q, want %q", cell, got, want)
+		}
+	}
+	if got, err := workbook.GetCellValue("1000增强_超额", "A3"); err != nil || got != "" {
+		t.Fatalf("benchmark index should be omitted from excess sheet, A3 = %q (err=%v)", got, err)
 	}
 }

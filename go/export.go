@@ -53,45 +53,30 @@ func exportExcel(funds []Fund, w io.Writer) error {
 				break
 			}
 		}
+		if err := writeExportTable(f, sheet, 1, headers, strategyFunds, strategy, false); err != nil {
+			return err
+		}
 		if !hasExcess {
-			if err := writeExportTable(f, sheet, 1, headers, strategyFunds, strategy, false); err != nil {
-				return err
-			}
 			continue
 		}
 
-		if err := writeExportSectionTitle(f, sheet, 1, len(headers), "绝对收益"); err != nil {
-			return err
-		}
-		if err := writeExportTable(f, sheet, 2, headers, strategyFunds, strategy, false); err != nil {
-			return err
-		}
 		excessFunds := make([]Fund, 0, len(strategyFunds))
 		for _, fund := range strategyFunds {
 			if !strings.Contains(fund.Manager, "指数") {
 				excessFunds = append(excessFunds, fund)
 			}
 		}
-		excessTitleRow := len(strategyFunds) + 4
-		if err := writeExportSectionTitle(f, sheet, excessTitleRow, len(headers), "超额收益"); err != nil {
+		excessSheet := uniqueSheetName(strategy+"_超额", usedNames)
+		if _, err := f.NewSheet(excessSheet); err != nil {
 			return err
 		}
-		if err := writeExportTable(f, sheet, excessTitleRow+1, headers, excessFunds, strategy, true); err != nil {
+		if err := writeExportTable(f, excessSheet, 1, headers, excessFunds, strategy, true); err != nil {
 			return err
 		}
 	}
 
 	_, err := f.WriteTo(w)
 	return err
-}
-
-func writeExportSectionTitle(f *excelize.File, sheet string, row, columnCount int, title string) error {
-	start, _ := excelize.CoordinatesToCellName(1, row)
-	end, _ := excelize.CoordinatesToCellName(columnCount, row)
-	if err := f.SetCellValue(sheet, start, title); err != nil {
-		return err
-	}
-	return f.MergeCell(sheet, start, end)
 }
 
 func writeExportTable(f *excelize.File, sheet string, headerRow int, headers []string, funds []Fund, strategy string, excess bool) error {
