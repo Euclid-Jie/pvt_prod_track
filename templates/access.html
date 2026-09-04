@@ -52,7 +52,7 @@
         <div class="access-form-head">
           <p class="access-kicker">访问留言</p>
           <h2 id="formTitle">提交访问申请</h2>
-          <p id="formDescription">不同浏览器会被识别为不同设备，需要分别提交申请。提交后请联系“川分-杰瑞”进行审批。</p>
+          <p id="formDescription">不同浏览器会被识别为不同设备，需要分别提交申请。提交后联系万总审批。</p>
         </div>
 
         <form id="applicationForm" class="access-form">
@@ -75,7 +75,7 @@
         <div id="submittedState" class="access-submitted" hidden>
           <div class="access-stamp" id="statusStamp">待审核</div>
           <h3 id="submittedTitle">申请已送达</h3>
-          <p id="submittedText">请联系“川分-杰瑞”进行审批，批准后重新打开或刷新此页面即可进入周报。</p>
+          <p id="submittedText">联系万总审批，批准后重新打开或刷新此页面即可进入周报。</p>
           <button id="checkButton" class="access-primary" type="button">检查审批状态</button>
           <button id="reapplyButton" class="access-secondary" type="button" hidden>重新申请</button>
         </div>
@@ -120,7 +120,7 @@
         el("statusStamp").textContent = "待审核";
         el("statusStamp").className = "access-stamp is-pending";
         el("submittedTitle").textContent = "申请已送达";
-        el("submittedText").textContent = "请联系“川分-杰瑞”进行审批，批准后重新打开或刷新此页面即可进入周报。";
+        el("submittedText").textContent = "联系万总审批，批准后重新打开或刷新此页面即可进入周报。";
       } else if (approved) {
         el("reviewHint").textContent = "管理员已批准";
         el("statusStamp").textContent = "已批准";
