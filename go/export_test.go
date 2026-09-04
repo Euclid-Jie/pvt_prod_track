@@ -43,3 +43,41 @@ func TestExportExcelGroupsByStrategyAndOmitsProductName(t *testing.T) {
 		t.Fatalf("unexpected extra export column K1 = %q (err=%v)", got, err)
 	}
 }
+
+func TestExportExcelAddsAbsoluteAndExcessSectionsForEligibleStrategy(t *testing.T) {
+	var output bytes.Buffer
+	funds := []Fund{
+		{
+			Strategy: "1000增强", Manager: "管理人A", Scale: "50-100亿元", HasExcess: true,
+			RecentWeek: "1.00", RecentMonth: "2.00", Ytd: "3.00", RecentYear: "4.00", Y2025: "5.00", Y2024: "6.00", Y2023: "7.00",
+			ExcessRecentWeek: "0.10", ExcessRecentMonth: "0.20", ExcessYtd: "0.30", ExcessRecentYear: "0.40", ExcessY2025: "0.50", ExcessY2024: "0.60", ExcessY2023: "0.70",
+		},
+		{Strategy: "1000增强", Manager: "中证1000指数", RecentWeek: "8.00"},
+	}
+	if err := exportExcel(funds, &output); err != nil {
+		t.Fatalf("exportExcel() error = %v", err)
+	}
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(output.Bytes()))
+	if err != nil {
+		t.Fatalf("open exported workbook: %v", err)
+	}
+	defer workbook.Close()
+
+	sheet := "1000增强"
+	for cell, want := range map[string]string{
+		"A1": "绝对收益", "A2": "管理人", "A3": "管理人A", "D3": "1.00", "A4": "中证1000指数", "D4": "8.00",
+		"A6": "超额收益", "A7": "管理人", "A8": "管理人A", "D8": "0.10", "E8": "0.20", "F8": "0.30", "G8": "0.40", "H8": "0.50", "I8": "0.60", "J8": "0.70",
+	} {
+		got, err := workbook.GetCellValue(sheet, cell)
+		if err != nil {
+			t.Fatalf("GetCellValue(%s): %v", cell, err)
+		}
+		if got != want {
+			t.Errorf("cell %s = %q, want %q", cell, got, want)
+		}
+	}
+	if got, err := workbook.GetCellValue(sheet, "A9"); err != nil || got != "" {
+		t.Fatalf("benchmark index should be omitted from excess section, A9 = %q (err=%v)", got, err)
+	}
+}
