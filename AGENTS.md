@@ -192,9 +192,9 @@ Clear filters empties manager keywords, restores strategy/scale to all, selects
 recent-week sorting, and disables fixed ranking and excess mode.
 The excess checkbox always keeps the same layout slot. It is enabled only when one
 specific selected strategy has `has_excess=true`; otherwise it is unchecked and disabled.
-When enabled, it switches all displayed metrics to `is_excess=1` and excludes rows whose
-manager contains `指数` before ranking. Web sorting and summary averages use the precise
-return fields (`*_precise`) while cells remain formatted to two decimals. Excess ties use
+When enabled, it switches all displayed metrics to `is_excess=1` and excludes FOF99 index rows
+where `Nav.fof99_nav_index.is_index = 1` before ranking. Web sorting and summary averages use
+the precise return fields (`*_precise`) while cells remain formatted to two decimals. Excess ties use
 the corresponding precise absolute return as the secondary sort key.
 
 ## Weekly Update Workflow

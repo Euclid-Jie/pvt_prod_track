@@ -36,6 +36,7 @@
 | `CompCode` | 管理人登记编号，用于 Alpha Plus 以外的补充来源补规模。 |
 | `NavSource` | `Euclid.fund_basic_info.净值来源`，用于识别个人净值产品。 |
 | `Fid` | `Euclid.fund_basic_info.fid`，用于个人净值产品 key。 |
+| `IsIndex` | API 输出为 `is_index`；目前仅 FOF99 来源读取 `Nav.fof99_nav_index.is_index`，其它来源固定为 `false`。 |
 
 ## 来源一：Euclid.fund_basic_info
 
@@ -162,6 +163,7 @@ AND register_number IS NOT NULL AND TRIM(register_number) <> ''
 | `prod_comp` | `ProdComp` |
 | `prod_type` | `ProdType` |
 | `comp_code` | `CompCode` |
+| `is_index` | `IsIndex` |
 
 metric key 规则：
 
@@ -276,7 +278,7 @@ Nav.mail_nav_index.comp_code
 
 不要改回拉平后的 metrics 明细再在 Go 内存中 pivot。这个表的行数明显多于产品数，服务端 pivot 是当前性能设计。
 
-API 的展示字段仍格式化为两位小数，同时为近一周、近一月、YTD、近一年返回百分比单位的 `*_precise` 字段。服务版排序和平均值使用精确字段，Excel 和桌面版继续使用原展示字段。存在 `is_excess = 1` 数据的策略在 Excel 中使用原策略 Sheet 导出绝对收益，并另建 `{策略}_超额` Sheet 导出超额收益；超额 Sheet 沿用服务版口径排除管理人名称带“指数”的对标指数行。超额指标由上游生成，服务版和 Excel 均不得用展示值自行相减计算。
+API 的展示字段仍格式化为两位小数，同时为近一周、近一月、YTD、近一年返回百分比单位的 `*_precise` 字段。服务版排序和平均值使用精确字段，Excel 和桌面版继续使用原展示字段。存在 `is_excess = 1` 数据的策略在 Excel 中使用原策略 Sheet 导出绝对收益，并另建 `{策略}_超额` Sheet 导出超额收益；Excel 超额 Sheet 仍排除管理人名称带“指数”的对标指数行，服务版超额模式仅排除 `Nav.fof99_nav_index.is_index = 1` 的 FOF99 指数行。超额指标由上游生成，服务版和 Excel 均不得用展示值自行相减计算。
 
 ## 展示过滤
 

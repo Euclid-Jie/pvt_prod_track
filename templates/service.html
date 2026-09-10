@@ -233,7 +233,7 @@
       const excess = isExcessMode();
       rankingData = allFundsData.filter(fund => {
         if (strategy !== "all" && fund.strategy !== strategy) return false;
-        if (excess && (fund.manager || "").includes("\u6307\u6570")) return false;
+        if (excess && fund.is_index) return false;
         const hasScale = !["", "-"].includes(String(fund.scale || "").trim());
         if (hasScale && scale === "large" && fund.scale_level === "\u5c0f\u5382") return false;
         if (hasScale && scale === "small" && fund.scale_level === "\u5927\u5382") return false;

@@ -42,6 +42,7 @@ type Fund struct {
 	Y2025                    string   `json:"y2025"`
 	Y2024                    string   `json:"y2024"`
 	Y2023                    string   `json:"y2023"`
+	IsIndex                  bool     `json:"is_index"`
 	HasExcess                bool     `json:"has_excess"`
 	ExcessRecentWeek         string   `json:"excess_recent_week"`
 	ExcessRecentWeekPrecise  *float64 `json:"excess_recent_week_precise,omitempty"`
@@ -68,6 +69,7 @@ type fundInfo struct {
 	NavSource  string
 	Fid        sql.NullInt64
 	MetricCode string
+	IsIndex    bool
 }
 
 func (info fundInfo) metricCode() string {
@@ -84,7 +86,7 @@ func appendFundInfoRows(infos []fundInfo, rows *sql.Rows) ([]fundInfo, error) {
 	defer rows.Close()
 	for rows.Next() {
 		var r fundInfo
-		if err := rows.Scan(&r.MetricCode, &r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale, &r.CompCode, &r.NavSource, &r.Fid); err != nil {
+		if err := rows.Scan(&r.MetricCode, &r.ProdCode, &r.ProdName, &r.ProdComp, &r.ProdType, &r.Scale, &r.CompCode, &r.NavSource, &r.Fid, &r.IsIndex); err != nil {
 			return nil, err
 		}
 		infos = append(infos, r)
@@ -160,12 +162,12 @@ func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 		db  *sql.DB
 		sql string
 	}{
-		{euclidDB, "SELECT '', COALESCE(prod_code, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), COALESCE(管理人规模, ''), '', 净值来源, fid FROM fund_basic_info WHERE 净值来源 IS NOT NULL"},
-		{navDB, "SELECT CONCAT('pending:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), prod_comp, COALESCE(ProdType, ''), '', COALESCE(comp_code, ''), '', NULL FROM PendingFund WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''"},
-		{navDB, "SELECT CONCAT('alpha_plus:', a.PROD_CODE), COALESCE(a.PROD_CODE, ''), COALESCE(a.PROD_NAME, ''), COALESCE(a.prod_comp, ''), COALESCE(a.STRATEGY_TYPE, ''), COALESCE(s.管理规模, ''), COALESCE(a.comp_code, ''), '', NULL FROM AlphaPlusFund a LEFT JOIN Euclid.company_scale s ON a.prod_comp = s.prod_comp WHERE a.PROD_CODE IS NOT NULL AND TRIM(a.PROD_CODE) <> ''"},
-		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM fof99_nav_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
-		{navDB, "SELECT CONCAT('smw:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM smw_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
-		{navDB, "SELECT CONCAT('mail:', product_key), COALESCE(product_key, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL FROM mail_nav_index WHERE enabled = 1 AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND product_key IS NOT NULL AND TRIM(product_key) <> '' AND prod_type IS NOT NULL AND TRIM(prod_type) <> ''"},
+		{euclidDB, "SELECT '', COALESCE(prod_code, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), COALESCE(管理人规模, ''), '', 净值来源, fid, 0 FROM fund_basic_info WHERE 净值来源 IS NOT NULL"},
+		{navDB, "SELECT CONCAT('pending:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), prod_comp, COALESCE(ProdType, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM PendingFund WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''"},
+		{navDB, "SELECT CONCAT('alpha_plus:', a.PROD_CODE), COALESCE(a.PROD_CODE, ''), COALESCE(a.PROD_NAME, ''), COALESCE(a.prod_comp, ''), COALESCE(a.STRATEGY_TYPE, ''), COALESCE(s.管理规模, ''), COALESCE(a.comp_code, ''), '', NULL, 0 FROM AlphaPlusFund a LEFT JOIN Euclid.company_scale s ON a.prod_comp = s.prod_comp WHERE a.PROD_CODE IS NOT NULL AND TRIM(a.PROD_CODE) <> ''"},
+		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, COALESCE(is_index, 0) FROM fof99_nav_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
+		{navDB, "SELECT CONCAT('smw:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM smw_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
+		{navDB, "SELECT CONCAT('mail:', product_key), COALESCE(product_key, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM mail_nav_index WHERE enabled = 1 AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND product_key IS NOT NULL AND TRIM(product_key) <> '' AND prod_type IS NOT NULL AND TRIM(prod_type) <> ''"},
 	}
 	for _, q := range queries {
 		rows, err := q.db.Query(q.sql)
@@ -429,6 +431,7 @@ func loadDataUncached(intervals []Interval) ([]Fund, error) {
 			Y2025:                    fmtVal(get(absoluteMap, code, "y2025_return"), true),
 			Y2024:                    fmtVal(get(absoluteMap, code, "y2024_return"), true),
 			Y2023:                    fmtVal(get(absoluteMap, code, "y2023_return"), true),
+			IsIndex:                  info.IsIndex,
 			HasExcess:                excessMap[code] != nil,
 			ExcessRecentWeek:         fmtVal(excessRecentWeek, true),
 			ExcessRecentWeekPrecise:  precisePctVal(excessRecentWeek),
