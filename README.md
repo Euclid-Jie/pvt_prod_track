@@ -71,6 +71,7 @@ go build -o ..\pvt_prod_track_debug.exe .
 - “产品明细”下方会显示当前策略、管理人规模、排序方式和超额口径；“清空条件”会清空管理人关键词、恢复全部策略和规模、切回近一周排序，并取消固定排名和超额。
 - 数据层以 `Euclid.fund_basic_info` 为主，依次追加 `Nav.PendingFund`、`Nav.AlphaPlusFund`、`Nav.fof99_nav_index`、`Nav.smw_index` 与 `Nav.mail_nav_index` 作为补充来源，不做去重。
 - 补充产品在 `Nav.nav_interval_metrics` 中分别使用 `pending:{PROD_CODE}`、`alpha_plus:{PROD_CODE}`、`fof99:{register_number}`、`smw:{register_number}`、`mail:{product_key}` 作为 `fund_code`。
+- `/api/data` 的 `is_index` 只映射 `Nav.fof99_nav_index.is_index`；其它来源固定为 `false`。`has_excess` 只表示该产品存在超额指标，不能用来判断是否为指数。
 - `Nav.nav_product_preferences.is_backup = 1` 的标准 `fund_code` 不进入周报展示和导出；该标记由数据库管理员人工维护，周报只读不写。
 - PendingFund、FOF99、SimuWang 与 Mail NAV 通过 `comp_code` 关联 `Euclid.量化私募管理人列表.登记编号` 后读取规模；Alpha Plus 通过 `prod_comp` 关联 `Euclid.company_scale.prod_comp` 后读取 `管理规模`。
 - 详细数据源、键名和规模补充规则见 [docs/data-sources.md](docs/data-sources.md)。

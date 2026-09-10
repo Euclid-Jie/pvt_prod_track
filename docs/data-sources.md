@@ -165,6 +165,17 @@ AND register_number IS NOT NULL AND TRIM(register_number) <> ''
 | `comp_code` | `CompCode` |
 | `is_index` | `IsIndex` |
 
+`is_index` 的传递链路为：
+
+```text
+Nav.fof99_nav_index.is_index
+  -> COALESCE(is_index, 0)
+  -> fundInfo.IsIndex
+  -> Fund.is_index
+```
+
+其它来源的查询在同一列位置返回 `0`，因此不会因为管理人名称包含“指数”而被标记为 `is_index`。
+
 metric key 规则：
 
 ```text
@@ -289,6 +300,8 @@ API 的展示字段仍格式化为两位小数，同时为近一周、近一月�
 3. 如果 `ProdComp == '基准'`，允许没有指标，指标展示为 `-`。
 4. `Scale == ''` 时展示为 `-`。
 5. `Scale` 属于 `50-100亿元` 或 `100亿元以上` 时，`ScaleLevel = 大厂`；其他情况为 `小厂`。
+6. 服务版启用超额模式时，排名池过滤 `Fund.is_index = true` 的 FOF99 指数行；过滤依据是来源字段 `Nav.fof99_nav_index.is_index = 1`，不是管理人名称。
+7. `Fund.has_excess` 只用于判断当前策略是否可以启用超额口径，以及切换到 `is_excess = 1` 指标；不能用它识别指数行。
 
 ## 修改时的检查清单
 

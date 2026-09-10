@@ -117,7 +117,7 @@ First run without `config.json` -> settings modal auto-opens.
 
 4. **`Nav.AlphaPlusFund`** — supplemental Alpha Plus product info for rows with non-empty `PROD_CODE`. It is appended after `PendingFund` without deduplication.
 
-5. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `AlphaPlusFund` without deduplication.
+5. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `AlphaPlusFund` without deduplication. Its `is_index` value is exposed as `Fund.is_index`; rows from other sources set this field to `false`.
 
 6. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
 
@@ -152,7 +152,7 @@ This key is used to look up rows in the absolute and excess pivot maps in Go (`k
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/data?strategy=X` | GET | Fund list with absolute/excess metrics and precise return fields used by Web sorting; optional strategy filter |
+| `/api/data?strategy=X` | GET | Fund list with absolute/excess metrics, precise return fields, and `is_index`/`has_excess` flags used by Web sorting and excess-mode controls; optional strategy filter |
 | `/api/strategies` | GET | Distinct strategy names |
 | `/api/intervals` | GET | `week_begin/end`, `ytd_begin/end` |
 | `/api/config` | GET/POST | Read/save `config.json` |
@@ -192,6 +192,7 @@ Clear filters empties manager keywords, restores strategy/scale to all, selects
 recent-week sorting, and disables fixed ranking and excess mode.
 The excess checkbox always keeps the same layout slot. It is enabled only when one
 specific selected strategy has `has_excess=true`; otherwise it is unchecked and disabled.
+`has_excess` controls whether the excess metric path is available; it is not an index classifier.
 When enabled, it switches all displayed metrics to `is_excess=1` and excludes FOF99 index rows
 where `Nav.fof99_nav_index.is_index = 1` before ranking. Web sorting and summary averages use
 the precise return fields (`*_precise`) while cells remain formatted to two decimals. Excess ties use
