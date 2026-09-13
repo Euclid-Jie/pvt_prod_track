@@ -79,6 +79,14 @@
 
       <section id="allowlistTab" class="admin-panel" hidden>
         <div class="admin-panel-head"><div><h2>白名单</h2><p>撤销后，对应设备或 IP 会立即失去访问权限。</p></div></div>
+        <form id="manualAllowlistForm" class="access-form admin-allowlist-form">
+          <div class="admin-allowlist-fields">
+            <label><span>IP 地址</span><input id="manualAllowlistIP" type="text" maxlength="45" autocomplete="off" placeholder="例如 111.163.178.136" required></label>
+            <label><span>白名单姓名</span><input id="manualAllowlistName" type="text" maxlength="80" autocomplete="off" placeholder="例如 张三或某团队" required></label>
+            <button id="addManualAllowlistButton" class="access-primary" type="submit">添加 IP 白名单</button>
+          </div>
+          <p class="admin-form-note">仅添加单个精确 IP，不支持网段；姓名会显示在白名单和访问历史中。</p>
+        </form>
         <div id="allowlistList" class="admin-record-list"></div>
       </section>
 
@@ -426,6 +434,22 @@
       catch (error) { setNotice(error.message, "error"); }
     }
 
+    async function addManualAllowlist(ip, name) {
+      const button = el("addManualAllowlistButton");
+      button.disabled = true;
+      setNotice("");
+      try {
+        await api("/api/admin/allowlist", jsonOptions("POST", {ip, name}));
+        el("manualAllowlistForm").reset();
+        setNotice("IP 白名单已添加。", "success");
+        await loadRecords();
+      } catch (error) {
+        setNotice(error.message, "error");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     async function loadMoreFeedback() {
       const button = el("adminFeedbackLoadMore");
       button.disabled = true;
@@ -516,6 +540,11 @@
       } finally {
         button.disabled = false;
       }
+    });
+
+    el("manualAllowlistForm").addEventListener("submit", event => {
+      event.preventDefault();
+      addManualAllowlist(el("manualAllowlistIP").value, el("manualAllowlistName").value);
     });
 
     el("logoutButton").addEventListener("click", async () => { try { await api("/api/admin/logout", {method: "POST"}); } finally { showLogin(); } });

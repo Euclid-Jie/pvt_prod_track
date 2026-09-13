@@ -94,6 +94,7 @@ type applicationInput struct {
 
 var errRateLimited = errors.New("rate limited")
 var errPendingApplication = errors.New("pending application already exists")
+var errAllowlistIPExists = errors.New("该 IP 已在有效白名单中")
 
 func newAccessControl(dir string, resetAdmin bool) (*accessControl, error) {
 	ac := &accessControl{
@@ -551,6 +552,40 @@ func (ac *accessControl) addAllowEntryLocked(kind, value, label, sourceID string
 		CreatedAt:           now,
 	})
 	return nil
+}
+
+func (ac *accessControl) addManualIPAllowEntry(ip, label string) (allowEntry, error) {
+	ip = canonicalIP(ip)
+	if ip == "" {
+		return allowEntry{}, errors.New("IP 地址无效")
+	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return allowEntry{}, errors.New("白名单姓名不能为空")
+	}
+	if utf8.RuneCountInString(label) > 80 {
+		return allowEntry{}, errors.New("白名单姓名不能超过 80 个字符")
+	}
+
+	now := ac.now().UTC()
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	for _, entry := range ac.state.Allowlist {
+		if entry.Kind == "ip" && entry.Value == ip && entry.RevokedAt == nil {
+			return allowEntry{}, errAllowlistIPExists
+		}
+	}
+
+	previousAllowlist := append([]allowEntry(nil), ac.state.Allowlist...)
+	if err := ac.addAllowEntryLocked("ip", ip, label, "", now); err != nil {
+		return allowEntry{}, err
+	}
+	entry := ac.state.Allowlist[len(ac.state.Allowlist)-1]
+	if err := ac.saveLocked(); err != nil {
+		ac.state.Allowlist = previousAllowlist
+		return allowEntry{}, err
+	}
+	return entry, nil
 }
 
 func (ac *accessControl) rejectApplication(id string) (accessApplication, error) {

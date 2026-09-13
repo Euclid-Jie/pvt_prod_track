@@ -99,6 +99,7 @@ func newServiceMux(ac *accessControl, feedbackStore *feedbackStore) http.Handler
 	mux.Handle("POST /api/admin/applications/{id}/reject", ac.requireAdmin(http.HandlerFunc(ac.handleRejectApplication)))
 	mux.Handle("DELETE /api/admin/applications/{id}", ac.requireAdmin(http.HandlerFunc(ac.handleDeleteApplication)))
 	mux.Handle("GET /api/admin/allowlist", ac.requireAdmin(http.HandlerFunc(ac.handleListAllowlist)))
+	mux.Handle("POST /api/admin/allowlist", ac.requireAdmin(http.HandlerFunc(ac.handleAddAllowlist)))
 	mux.Handle("GET /api/admin/visits", ac.requireAdmin(http.HandlerFunc(ac.handleListVisits)))
 	mux.Handle("GET /api/admin/feedback", ac.requireAdmin(http.HandlerFunc(feedback.handleList)))
 	mux.Handle("POST /api/admin/feedback/{id}/reply", ac.requireAdmin(http.HandlerFunc(feedback.handleReply)))
@@ -526,6 +527,29 @@ func (ac *accessControl) handleListAllowlist(w http.ResponseWriter, r *http.Requ
 		views = append(views, allowEntryToView(entry))
 	}
 	writeJSON(w, map[string]any{"allowlist": views})
+}
+
+func (ac *accessControl) handleAddAllowlist(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		IP   string `json:"ip"`
+		Name string `json:"name"`
+	}
+	if !decodeJSONBody(w, r, &input, 4096) {
+		return
+	}
+	entry, err := ac.addManualIPAllowEntry(input.IP, input.Name)
+	if errors.Is(err, errAllowlistIPExists) {
+		writeAPIError(w, http.StatusConflict, "ip_already_allowlisted", "该 IP 已在有效白名单中，请先撤销原白名单后再添加")
+		return
+	}
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_allowlist_entry", err.Error())
+		return
+	}
+	writeJSONStatus(w, http.StatusCreated, map[string]any{
+		"status": "ok",
+		"entry":  allowEntryToView(entry),
+	})
 }
 
 func (ac *accessControl) handleListVisits(w http.ResponseWriter, r *http.Request) {

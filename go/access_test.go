@@ -124,6 +124,86 @@ func TestIPApprovalAllowsOtherDevice(t *testing.T) {
 	}
 }
 
+func TestManualIPAllowEntryCanonicalizesPersistsAndRejectsDuplicates(t *testing.T) {
+	dir := t.TempDir()
+	ac, err := newAccessControl(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ac.now = func() time.Time {
+		return time.Date(2026, 9, 13, 7, 0, 0, 0, time.UTC)
+	}
+
+	entry, err := ac.addManualIPAllowEntry(" 2001:0DB8:0:0:0:0:0:1 ", "  手工访客  ")
+	if err != nil {
+		t.Fatalf("addManualIPAllowEntry() error = %v", err)
+	}
+	if entry.Kind != "ip" || entry.Value != "2001:db8::1" || entry.Label != "手工访客" || entry.SourceApplicationID != "" {
+		t.Fatalf("manual allow entry = %+v", entry)
+	}
+	if !ac.isAllowed(tokenHash("other-device"), "2001:db8::1") {
+		t.Fatal("manual IP allow entry did not grant access")
+	}
+
+	if _, err := ac.addManualIPAllowEntry("2001:db8::1", "另一个姓名"); !errors.Is(err, errAllowlistIPExists) {
+		t.Fatalf("duplicate manual IP error = %v, want errAllowlistIPExists", err)
+	}
+
+	reloaded, err := newAccessControl(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := reloaded.listAllowlist()
+	if len(entries) != 1 || entries[0].Value != "2001:db8::1" || entries[0].Label != "手工访客" {
+		t.Fatalf("reloaded allowlist = %+v", entries)
+	}
+}
+
+func TestManualIPAllowlistAdminEndpoint(t *testing.T) {
+	ac := newTestAccessControl(t)
+	ac.setupTokenHash = tokenHash("manual-ip-setup")
+	if err := ac.setupAdmin("manual-ip-setup", "manual-ip-admin-password"); err != nil {
+		t.Fatal(err)
+	}
+	adminToken, err := ac.login("127.0.0.1", "manual-ip-admin-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	serviceMux := newTestServiceMux(t, ac)
+
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/admin/allowlist", strings.NewReader(`{"ip":"203.0.113.120","name":"手工 IP 用户"}`))
+	request.RemoteAddr = "127.0.0.1:50000"
+	request.Header.Set("Origin", "http://127.0.0.1")
+	request.Header.Set("Content-Type", "application/json")
+	request.AddCookie(&http.Cookie{Name: adminCookieName, Value: adminToken})
+	result := httptest.NewRecorder()
+	serviceMux.ServeHTTP(result, request)
+	if result.Code != http.StatusCreated || !strings.Contains(result.Body.String(), `"value":"203.0.113.120"`) || !strings.Contains(result.Body.String(), `"label":"手工 IP 用户"`) {
+		t.Fatalf("manual allowlist endpoint = %d %s", result.Code, result.Body.String())
+	}
+
+	duplicate := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/admin/allowlist", strings.NewReader(`{"ip":"203.0.113.120","name":"重复用户"}`))
+	duplicate.RemoteAddr = "127.0.0.1:50000"
+	duplicate.Header.Set("Origin", "http://127.0.0.1")
+	duplicate.Header.Set("Content-Type", "application/json")
+	duplicate.AddCookie(&http.Cookie{Name: adminCookieName, Value: adminToken})
+	duplicateResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(duplicateResult, duplicate)
+	if duplicateResult.Code != http.StatusConflict || !strings.Contains(duplicateResult.Body.String(), `"error":"ip_already_allowlisted"`) {
+		t.Fatalf("duplicate manual allowlist endpoint = %d %s", duplicateResult.Code, duplicateResult.Body.String())
+	}
+
+	unauthorized := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/admin/allowlist", strings.NewReader(`{"ip":"203.0.113.121","name":"未登录用户"}`))
+	unauthorized.RemoteAddr = "127.0.0.1:50000"
+	unauthorized.Header.Set("Origin", "http://127.0.0.1")
+	unauthorized.Header.Set("Content-Type", "application/json")
+	unauthorizedResult := httptest.NewRecorder()
+	serviceMux.ServeHTTP(unauthorizedResult, unauthorized)
+	if unauthorizedResult.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized manual allowlist endpoint = %d, want 401", unauthorizedResult.Code)
+	}
+}
+
 func TestApplicationRateLimit(t *testing.T) {
 	ac := newTestAccessControl(t)
 	now := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
