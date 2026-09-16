@@ -2,6 +2,11 @@
 
 This file provides guidance to Codex when working in this repository.
 
+> 🔗 **跨仓共享接口**（`Nav.nav_interval_metrics` / `fund_code` 约定 / 管理人规模关联 / 端口 / nginx）
+> 见 **atlas** 仓库：`W:\WorkSpace\atlas`（Obsidian vault）· `git@github.com:Euclid-Jie/atlas.git`
+> 数据来自 `nav_data_tracking`，与 `private-manager-archive` 消费同一份指标（它走 Zeus API，本项目直连 MySQL）。
+> **改动跨仓接口后，收尾时请更新 atlas 对应卡片。**
+
 ## Project Overview
 
 Go desktop app (WebView2) for viewing private fund performance data. `pvt_prod_track.exe` is the original desktop app. `pvt_prod_track_web.exe` is a separate browser/mobile service build. They share the same API/data layer, but the desktop app flow must remain unchanged.
