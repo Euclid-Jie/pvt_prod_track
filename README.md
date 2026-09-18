@@ -16,6 +16,8 @@
 
 服务版默认只监听 `127.0.0.1:5003`，页面地址为 `http://127.0.0.1:5003/`。公网访问由 Nginx 反向代理，不直接开放应用端口。
 
+线上入口为 `https://120.48.74.113/`（HTTP `:80` 同样可用）。`:443` 与 nav-api 共用同一个 vhost，`:15003` 保留旧地址迁移引导页，三处细节和回滚方式见 [docs/linux-deployment.md](docs/linux-deployment.md)。
+
 ## 构建
 
 修改 `templates/` 或 `static/` 后，先同步到 embedded assets：

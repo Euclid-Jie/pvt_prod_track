@@ -6,11 +6,15 @@
 
 ```text
 公网用户
-  -> Nginx :80
+  -> Nginx :80 / :443（443 与 nav-api 共用 vhost）
   -> 127.0.0.1:5003
   -> /opt/pvt-prod-track/pvt_prod_track_web
   -> GaiaDB 内网主地址:3306
 ```
+
+> 443 由 nav-api 以 `default_server` 持有，周报通过
+> `/etc/nginx/snippets/pvt-prod-track-https.conf` 共享该 vhost。
+> 改为其他上游或删除该片段前，先看 [linux-deployment.md](linux-deployment.md) 的「HTTPS 入口」。
 
 - systemd 服务：`pvt-prod-track.service`
 - 应用监听：`127.0.0.1:5003`
@@ -136,6 +140,7 @@ systemd 已启用开机自启和失败自动重启。服务器重启、断电恢
 | `systemctl is-active pvt-prod-track` 非 `active` | 应用进程异常 | 重启应用并查看 journal |
 | 回环 `/api/access/status` 不是 200 | 应用或运行配置异常 | 检查应用日志、数据目录和端口 |
 | 回环正常但公网异常 | Nginx 或公网入口异常 | 检查 Nginx 状态和错误日志 |
+| `:80` 正常但 `https://` 首页 404 | 443 vhost 未 include 周报片段 | `sudo nginx -T \| grep pvt-prod-track-https`，未命中则重装片段并 reload |
 | 页面可打开但数据接口报错 | GaiaDB 链路或查询异常 | 检查内网解析、3306 和数据库状态 |
 | 新版本反复退出 | 新二进制缺陷 | 回滚上一版本 |
 
