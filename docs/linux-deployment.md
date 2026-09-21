@@ -2,6 +2,8 @@
 
 生产拓扑为 `Nginx :80/:443 -> 127.0.0.1:5003`。443 与 nav-api 共用同一个 vhost，接入方式见下文「HTTPS 入口」。应用端口不得直接加入公网安全组。
 
+公网 Nginx 是 Zeus 平台边缘配置，不属于周报或 NAV 任一应用的独立发布物。活动 `/etc/nginx/conf.d/nav-api-ip.conf` 同时承载 NAV API/Portal 精确路由和周报 HTTPS fallback；应用发布不得用自己的完整模板覆盖它。周报仓库只负责 `/etc/nginx/snippets/pvt-prod-track-https.conf` 片段，NAV 应用发布包也不再携带完整共享 vhost。
+
 ## 构建
 
 在 Windows PowerShell 中交叉编译 Linux x86-64 二进制：
@@ -87,7 +89,19 @@ sudo install -o root -g root -m 0644 \
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-`nav-api-ip.conf` 只在首次接入时改一次；之后更新片段即可。
+`nav-api-ip.conf` 是平台边缘配置，只能由单独的边缘发布流程变更；周报应用发布和 NAV 应用发布都不得覆盖它。周报片段更新后，应从 `nav_data_tracking` 仓库运行只读配置及公网验收脚本：
+
+如果需要修改完整的共享 443 vhost，不要直接 `scp` 或 `install` 到
+`/etc/nginx/conf.d/nav-api-ip.conf`，应使用 `nav_data_tracking/deploy/deploy_zeus_public_edge.py`。
+该工具会获取 Nginx 发布锁、备份活动配置、验证候选文件、执行 `nginx -t` 和 reload，
+再做公网语义验收；失败时自动恢复备份。周报片段本身变更时也应先备份片段，安装后执行
+`nginx -t`、reload 和同一份公网验收，失败则恢复片段备份。
+
+```bash
+sudo /usr/bin/python3 /usr/local/lib/zeus-edge/check_zeus_public_edge.py \
+  --config /etc/nginx/conf.d/nav-api-ip.conf \
+  --base-url https://120.48.74.113
+```
 
 验证：
 
@@ -103,8 +117,8 @@ curl -sS -o /dev/null -D - -H 'Accept-Encoding: gzip' \
 private-manager-archive 的 15110 共用 `/etc/letsencrypt/live/120.48.74.113/`，
 由 `snap.certbot.renew.timer` 自动续期，不需要手工维护。
 
-回滚：恢复 `/etc/nginx/conf.d/nav-api-ip.conf.before-*` 备份，`nginx -t` 后 reload，
-443 即恢复为 `location / { return 404; }`。周报的 80 入口全程未改。
+回滚：恢复边缘发布前保存到 `/root/nginx-backups/` 的活动配置备份，执行 `nginx -t` 后 reload，
+再运行上面的配置和公网验收。不要把旧的 `location / { return 404; }` 当作周报回滚目标；除非明确下线周报 HTTPS，否则 443 必须继续保留共享 fallback。周报的 80 入口全程未改。
 
 ## 旧端口 15003（TLS）
 

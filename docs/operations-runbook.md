@@ -14,7 +14,7 @@
 
 > 443 由 nav-api 以 `default_server` 持有，周报通过
 > `/etc/nginx/snippets/pvt-prod-track-https.conf` 共享该 vhost。
-> 改为其他上游或删除该片段前，先看 [linux-deployment.md](linux-deployment.md) 的「HTTPS 入口」。
+> `/etc/nginx/conf.d/nav-api-ip.conf` 是 Zeus 公网边缘平台配置，不属于周报应用发布；周报发布不得覆盖它。改为其他上游或删除该片段前，先看 [linux-deployment.md](linux-deployment.md) 的「HTTPS 入口」。
 
 - systemd 服务：`pvt-prod-track.service`
 - 应用监听：`127.0.0.1:5003`
@@ -146,6 +146,16 @@ systemd 已启用开机自启和失败自动重启。服务器重启、断电恢
 
 公网首页对未授权设备返回 `302` 到 `/access` 是正常行为；健康检查优先使用 `/api/access/status`，预期 HTTP `200`。
 
+每次周报或 NAV 发布后，都要额外验证共享公网契约。推荐直接使用 NAV 仓库随发布包提供的只读检查器：
+
+```bash
+sudo /usr/bin/python3 /usr/local/lib/zeus-edge/check_zeus_public_edge.py \
+  --config /etc/nginx/conf.d/nav-api-ip.conf \
+  --base-url https://120.48.74.113
+```
+
+该检查器会验证 443 首页 `302 /access`、周报 `/access` `200`、Portal `200`、无 Key 的 NAV API `401`、HTTP 首页 `302 /access`，并拒绝缺失周报 fallback 或重新出现共享 catch-all `404` 的活动配置。检查失败时不要继续对外宣布发布成功，应先恢复边缘配置备份并重新 reload。
+
 ### 2. 应用检查
 
 ```bash
@@ -175,6 +185,9 @@ tail -n 100 /var/log/nginx/error.log
 ```bash
 systemctl reload nginx
 ```
+
+修改 Nginx 前必须将活动配置备份到 `/root/nginx-backups/`；不要把备份文件放在
+`/etc/nginx/conf.d/` 或 `/etc/nginx/sites-enabled/`。Nginx 语法通过不代表路由正确，reload 后必须继续运行上面的公网 smoke test。
 
 生产上游必须保持为：
 
