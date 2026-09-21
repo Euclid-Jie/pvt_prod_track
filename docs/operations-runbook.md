@@ -146,7 +146,7 @@ systemd 已启用开机自启和失败自动重启。服务器重启、断电恢
 
 公网首页对未授权设备返回 `302` 到 `/access` 是正常行为；健康检查优先使用 `/api/access/status`，预期 HTTP `200`。
 
-每次周报或 NAV 发布后，都要额外验证共享公网契约。推荐直接使用 NAV 仓库随发布包提供的只读检查器：
+每次周报或 NAV 发布后，都要额外验证共享公网契约。推荐直接使用 Zeus 上安装的平台只读检查器：
 
 ```bash
 sudo /usr/bin/python3 /usr/local/lib/zeus-edge/check_zeus_public_edge.py \
