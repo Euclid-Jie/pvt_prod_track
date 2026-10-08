@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+target=/var/lib/pvt-prod-track/Chinese_special_holiday.txt
+service=pvt-prod-track.service
+tmp=$(mktemp "$(dirname "$target")/.holiday.XXXXXX")
+backup=""
+had_target=0
+
+cleanup() {
+  rm -f -- "$tmp"
+}
+trap cleanup EXIT
+
+cat > "$tmp"
+
+python3 - "$tmp" <<'PY'
+from datetime import date
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+seen = set()
+for line_number, raw in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+    if not raw:
+        continue
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        raise SystemExit(f"invalid holiday date on line {line_number}")
+    try:
+        date.fromisoformat(raw)
+    except ValueError:
+        raise SystemExit(f"invalid calendar date on line {line_number}")
+    if raw in seen:
+        raise SystemExit(f"duplicate holiday date on line {line_number}")
+    seen.add(raw)
+
+if not seen:
+    raise SystemExit("holiday file is empty")
+PY
+
+if [[ -f "$target" ]] && cmp -s -- "$tmp" "$target"; then
+  echo "holiday file unchanged"
+  exit 0
+fi
+
+if [[ -f "$target" ]]; then
+  had_target=1
+  backup="$target.before-$(date -u +%Y%m%d-%H%M%S)"
+  cp -a -- "$target" "$backup"
+fi
+
+chown pvt-prod-track:pvt-prod-track "$tmp"
+chmod 0600 "$tmp"
+mv -f -- "$tmp" "$target"
+
+if ! systemctl restart "$service" || ! systemctl is-active --quiet "$service"; then
+  if [[ "$had_target" -eq 1 ]]; then
+    cp -a -- "$backup" "$target"
+  else
+    rm -f -- "$target"
+  fi
+  systemctl restart "$service" || true
+  echo "service restart failed; previous holiday file restored" >&2
+  exit 1
+fi
+
+echo "holiday file updated; service active"

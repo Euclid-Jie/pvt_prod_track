@@ -276,7 +276,9 @@ ssh -L 5080:127.0.0.1:80 zeus
 
 ## `Chinese_special_holiday.txt` 同步
 
-该文件存在三个位置：
+节假日权威源是 `nav_interval_metric` 仓库的 `Chinese_special_holiday.txt`。向 `master` 推送该文件的变更后，GitHub Actions 会校验日期并自动更新 Zeus。工作流和 Zeus 权限边界见 [holiday-auto-deploy.md](holiday-auto-deploy.md)。
+
+pvt 仓库仍保留本地和内嵌副本，供 Windows 桌面版及云端运行文件缺失时回退使用：
 
 ```text
 本地维护源：Chinese_special_holiday.txt
@@ -284,9 +286,11 @@ ssh -L 5080:127.0.0.1:80 zeus
 云端运行文件：/var/lib/pvt-prod-track/Chinese_special_holiday.txt
 ```
 
-推荐将 Git 跟踪的本地根目录文件作为编辑源。每次更新执行：
+日常更新以 `nav_interval_metric` 为准。需要构建使用最新内嵌资源的 pvt 二进制时，将权威源同步到 pvt 仓库根目录和 `go/assets`，并一并提交。GitHub Actions 成功后，可在 GitHub 仓库 Actions 页面确认部署结果。
 
-1. 修改根目录的 `Chinese_special_holiday.txt`。
+GitHub Actions 不可用时，可按以下步骤手动同步 Zeus：
+
+1. 将待发布的节假日文件准备在 pvt 仓库根目录。若它来自 Windows 工作区，CRLF 与 GitHub 上的 LF 可能造成文件哈希不同；应先比较逐行日期内容。传输同一个本地文件时，根目录、内嵌文件和 Zeus 运行文件的哈希应一致。
 2. 同步到构建内嵌版本：
 
 ```powershell
@@ -295,29 +299,17 @@ Copy-Item `
   go\assets\Chinese_special_holiday.txt
 ```
 
-3. 将同一文件上传到服务器临时路径：
+3. 将文件上传到服务器临时路径：
 
 ```powershell
 scp Chinese_special_holiday.txt zeus:/tmp/Chinese_special_holiday.txt.new
 ```
 
-4. 在 zeus 上备份现有运行文件、安装新文件并重启服务，使交易日区间和缓存立即重建：
+4. 通过已安装的校验脚本更新文件。脚本会先校验日期、备份原文件、原子替换并重启服务；重启失败时会恢复原文件：
 
 ```bash
-stamp=$(date +%Y%m%d-%H%M%S)
-
-if [ -f /var/lib/pvt-prod-track/Chinese_special_holiday.txt ]; then
-  sudo cp -a \
-    /var/lib/pvt-prod-track/Chinese_special_holiday.txt \
-    /var/lib/pvt-prod-track/Chinese_special_holiday.txt.before-$stamp
-fi
-
-sudo install -o pvt-prod-track -g pvt-prod-track -m 0600 \
-  /tmp/Chinese_special_holiday.txt.new \
-  /var/lib/pvt-prod-track/Chinese_special_holiday.txt
-
-sudo systemctl restart pvt-prod-track.service
-systemctl is-active pvt-prod-track.service
+ssh zeus "/usr/local/sbin/pvt-update-holiday < /tmp/Chinese_special_holiday.txt.new"
+ssh zeus "systemctl is-active pvt-prod-track.service"
 ```
 
 5. 核对三份文件哈希：
@@ -331,7 +323,7 @@ ssh zeus "sha256sum /var/lib/pvt-prod-track/Chinese_special_holiday.txt"
 
 6. 三者一致后，将两份本地文件提交到 Git。
 
-紧急情况下如果先在云端管理页面上传，事后必须把云端文件拉回本地，同时更新根目录和 `go/assets`，再提交 Git，避免下一次构建重新嵌入旧版本。
+手动同步的内容也应先进入 `nav_interval_metric` 权威源，避免后续自动部署覆盖云端变更。若 Actions 暂时不可用，恢复后再推送源文件并确认工作流成功。
 
 `intervals.json` 遵循同样的根目录/嵌入资源同步原则。`config.json`、`access_control.json` 和 `feedback.json` 只属于云端运行状态，绝不能复制到 `go/assets` 或提交到 Git。
 
