@@ -98,8 +98,12 @@ def load_data():
         )
         f_info = ex.submit(
             pd.read_sql_query,
-            "SELECT prod_code, prod_name, prod_comp, prod_type, 管理人规模, 净值来源, fid "
-            "FROM fund_basic_info WHERE 净值来源 IS NOT NULL",
+            "SELECT f.prod_code, f.prod_name, f.prod_comp, f.prod_type, "
+            "COALESCE(p.管理规模, '') AS `管理人规模`, f.净值来源, f.fid "
+            "FROM fund_basic_info AS f "
+            "LEFT JOIN private_manager_profile AS p "
+            "ON UPPER(TRIM(f.comp_code)) = UPPER(TRIM(p.comp_code)) "
+            "WHERE f.净值来源 IS NOT NULL",
             engine_euclid,
         )
         f_start = ex.submit(

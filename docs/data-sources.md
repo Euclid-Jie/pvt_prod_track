@@ -15,6 +15,8 @@
 
 补充来源不去重。如果不同来源给出相同产品或相同 metric key，当前逻辑会按读取顺序各自进入后续流程；上游数据应负责避免不希望出现的重复。
 
+管理人规模只有一个来源：`Euclid.private_manager_profile`。六类来源的查询本身都不返回规模列，只提供 `comp_code`；`loadFundInfos()` 读完所有来源后，用 `comp_code` 去掉首尾空格、忽略大小写地匹配主档，统一填充 `Scale`（`fillManagerScales`）。不要在任一来源查询里 join 其他规模表，也不要回退到来源表自带的规模列。
+
 ## 备用净值过滤
 
 `Nav.nav_product_preferences` 使用已经标准化的 `fund_code` 保存人工主备选择。`is_backup = 1` 的产品在周报组装阶段被排除，但净值采集和 `Nav.nav_interval_metrics` 指标计算继续保留。
@@ -32,8 +34,8 @@
 | `ProdName` | 展示为产品名称。 |
 | `ProdComp` | 展示为管理人。 |
 | `ProdType` | 先映射 `strategyType`，再展示为策略类型。 |
-| `Scale` | 展示为规模，并用于 `ScaleLevel`。 |
-| `CompCode` | 管理人登记编号，用于 Alpha Plus 以外的补充来源补规模。 |
+| `Scale` | 展示为规模，并用于 `ScaleLevel`。唯一来源是 `Euclid.private_manager_profile.管理规模`。 |
+| `CompCode` | 管理人登记编号（`comp_code`）。所有来源都用它关联 `Euclid.private_manager_profile` 读取规模。 |
 | `NavSource` | `Euclid.fund_basic_info.净值来源`，用于识别个人净值产品。 |
 | `Fid` | `Euclid.fund_basic_info.fid`，用于个人净值产品 key。 |
 | `IsIndex` | API 输出为 `is_index`；目前仅 FOF99 来源读取 `Nav.fof99_nav_index.is_index`，其它来源固定为 `false`。 |
@@ -54,7 +56,7 @@
 | `prod_name` | `ProdName` |
 | `prod_comp` | `ProdComp` |
 | `prod_type` | `ProdType` |
-| `管理人规模` | `Scale` |
+| `comp_code` | `CompCode`，用于补规模 |
 | `净值来源` | `NavSource` |
 | `fid` | `Fid` |
 
@@ -66,6 +68,15 @@ metric key 规则：
 | 其他普通产品 | `prod_code` |
 
 注意：`fund_basic_info.prod_code` 不能简单认为总是等于 `nav_interval_metrics.fund_code`，个人净值产品必须走 `p_{fid}`。
+
+规模补充：
+
+```text
+Euclid.fund_basic_info.comp_code
+  -> Euclid.private_manager_profile.comp_code -> 管理规模
+```
+
+`fund_basic_info.管理人规模` 是历史冗余列，代码不再读取。没有 `comp_code` 的产品（如 `公募` 行、`PT…` 历史编码）查不到主档，展示规模为 `-`，`scale_level` 按小厂处理；这是预期行为，不要回退到旧列做兜底。
 
 ## 来源二：Nav.PendingFund
 
@@ -101,8 +112,7 @@ pending:{PROD_CODE}
 
 ```text
 Nav.PendingFund.comp_code
-  -> Euclid.量化私募管理人列表.登记编号
-  -> Euclid.量化私募管理人列表.管理规模
+  -> Euclid.private_manager_profile.comp_code -> 管理规模
 ```
 
 如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
@@ -136,12 +146,12 @@ alpha_plus:{PROD_CODE}
 规模补充：
 
 ```text
-Nav.AlphaPlusFund.prod_comp
-  -> Euclid.company_scale.prod_comp
-  -> Euclid.company_scale.管理规模
+Nav.AlphaPlusFund.comp_code
+  -> Euclid.private_manager_profile.comp_code
+  -> Euclid.private_manager_profile.管理规模
 ```
 
-如果 `prod_comp` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
+如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
 
 ## 来源四：Nav.fof99_nav_index
 
@@ -190,8 +200,7 @@ fof99:{register_number}
 
 ```text
 Nav.fof99_nav_index.comp_code
-  -> Euclid.量化私募管理人列表.登记编号
-  -> Euclid.量化私募管理人列表.管理规模
+  -> Euclid.private_manager_profile.comp_code -> 管理规模
 ```
 
 如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
@@ -231,8 +240,7 @@ smw:{register_number}
 
 ```text
 Nav.smw_index.comp_code
-  -> Euclid.量化私募管理人列表.登记编号
-  -> Euclid.量化私募管理人列表.管理规模
+  -> Euclid.private_manager_profile.comp_code -> 管理规模
 ```
 
 如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
@@ -272,8 +280,7 @@ mail:{product_key}
 
 ```text
 Nav.mail_nav_index.comp_code
-  -> Euclid.量化私募管理人列表.登记编号
-  -> Euclid.量化私募管理人列表.管理规模
+  -> Euclid.private_manager_profile.comp_code -> 管理规模
 ```
 
 如果 `comp_code` 找不到管理人规模，展示规模为 `-`，`scale_level` 按小厂处理。
@@ -310,6 +317,6 @@ API 的展示字段仍格式化为两位小数，同时为近一周、近一月�
 1. 基础来源是否仍按自身准入条件控制展示。
 2. metric key 是否和 `nav_data_tracking\nav_sources.py` 的 `metric_code_prefix` 完全一致。
 3. metric key 是否和 `Nav.nav_interval_metrics.fund_code` 完全一致。
-4. PendingFund、FOF99、SimuWang、Mail NAV 是否仍通过 `comp_code -> 登记编号 -> 管理规模` 补规模，Alpha Plus 是否仍通过 `prod_comp -> company_scale.prod_comp -> 管理规模` 补规模。
+4. 所有来源是否仍通过 `comp_code -> private_manager_profile.comp_code -> 管理规模` 补规模，且没有任何来源查询自带规模列或 join 其他规模表。
 5. 是否无意加入去重、覆盖、按 metrics 反推基础产品的逻辑。
 6. `go test ./...` 是否通过。

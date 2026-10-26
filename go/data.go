@@ -10,6 +10,24 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// 管理人规模的唯一来源是 Euclid.private_manager_profile。
+// 各来源查询固定返回空字符串作为 Scale，只额外提供 comp_code，
+// 再由 fillManagerScales 统一填充；禁止在来源查询里 join 其它规模表。
+const managerScaleQuery = "SELECT COALESCE(`comp_code`, ''), COALESCE(`管理规模`, '') FROM `private_manager_profile`"
+const fundBasicInfoQuery = "SELECT '', COALESCE(prod_code, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), 净值来源, fid, 0 FROM fund_basic_info WHERE 净值来源 IS NOT NULL"
+const alphaPlusFundQuery = "SELECT CONCAT('alpha_plus:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), COALESCE(prod_comp, ''), COALESCE(STRATEGY_TYPE, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM AlphaPlusFund WHERE PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''"
+
+func managerScaleKey(compCode string) string {
+	return strings.ToUpper(strings.TrimSpace(compCode))
+}
+
+// fillManagerScales 是所有来源唯一的规模补全入口。
+func fillManagerScales(infos []fundInfo, managerScales map[string]string) {
+	for i := range infos {
+		infos[i].Scale = managerScales[managerScaleKey(infos[i].CompCode)]
+	}
+}
+
 var strategyType = map[string]string{
 	"CTA中短": "CTA", "CTA中长": "CTA", "CTA横截面": "CTA", "CTA基本面": "CTA",
 	"CTA日内": "CTA", "CTA混合": "CTA", "CTA高频": "CTA", "CTA截面": "CTA",
@@ -98,7 +116,7 @@ func appendFundInfoRows(infos []fundInfo, rows *sql.Rows) ([]fundInfo, error) {
 }
 
 func loadManagerScales(euclidDB *sql.DB) (map[string]string, error) {
-	rows, err := euclidDB.Query("SELECT COALESCE(`登记编号`, ''), COALESCE(`管理规模`, '') FROM `量化私募管理人列表`")
+	rows, err := euclidDB.Query(managerScaleQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +128,8 @@ func loadManagerScales(euclidDB *sql.DB) (map[string]string, error) {
 		if err := rows.Scan(&compCode, &scale); err != nil {
 			return nil, err
 		}
-		if compCode != "" {
-			scales[compCode] = scale
+		if key := managerScaleKey(compCode); key != "" {
+			scales[key] = scale
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -162,9 +180,9 @@ func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 		db  *sql.DB
 		sql string
 	}{
-		{euclidDB, "SELECT '', COALESCE(prod_code, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), COALESCE(管理人规模, ''), '', 净值来源, fid, 0 FROM fund_basic_info WHERE 净值来源 IS NOT NULL"},
+		{euclidDB, fundBasicInfoQuery},
 		{navDB, "SELECT CONCAT('pending:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), prod_comp, COALESCE(ProdType, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM PendingFund WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''"},
-		{navDB, "SELECT CONCAT('alpha_plus:', a.PROD_CODE), COALESCE(a.PROD_CODE, ''), COALESCE(a.PROD_NAME, ''), COALESCE(a.prod_comp, ''), COALESCE(a.STRATEGY_TYPE, ''), COALESCE(s.管理规模, ''), COALESCE(a.comp_code, ''), '', NULL, 0 FROM AlphaPlusFund a LEFT JOIN Euclid.company_scale s ON a.prod_comp = s.prod_comp WHERE a.PROD_CODE IS NOT NULL AND TRIM(a.PROD_CODE) <> ''"},
+		{navDB, alphaPlusFundQuery},
 		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, COALESCE(is_index, 0) FROM fof99_nav_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
 		{navDB, "SELECT CONCAT('smw:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM smw_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
 		{navDB, "SELECT CONCAT('mail:', product_key), COALESCE(product_key, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM mail_nav_index WHERE enabled = 1 AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND product_key IS NOT NULL AND TRIM(product_key) <> '' AND prod_type IS NOT NULL AND TRIM(prod_type) <> ''"},
@@ -179,11 +197,7 @@ func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 			return nil, err
 		}
 	}
-	for i := range infos {
-		if infos[i].Scale == "" && infos[i].CompCode != "" {
-			infos[i].Scale = managerScales[infos[i].CompCode]
-		}
-	}
+	fillManagerScales(infos, managerScales)
 	backupCodes, err := loadBackupFundCodes(navDB)
 	if err != nil {
 		return nil, err
