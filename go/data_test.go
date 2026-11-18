@@ -15,6 +15,7 @@ func TestSourceQueriesDoNotCarryScale(t *testing.T) {
 	queries := map[string]string{
 		"fund_basic_info": fundBasicInfoQuery,
 		"alpha_plus":      alphaPlusFundQuery,
+		"alpha_pro":       alphaProFundQuery,
 	}
 	for name, query := range queries {
 		for _, forbidden := range []string{"private_manager_profile", "company_scale", "管理人规模", "管理规模"} {
@@ -25,6 +26,21 @@ func TestSourceQueriesDoNotCarryScale(t *testing.T) {
 		if !strings.Contains(query, "COALESCE(comp_code, '')") {
 			t.Fatalf("%s query must expose comp_code for the scale lookup: %s", name, query)
 		}
+	}
+}
+
+func TestAlphaProQueryMirrorsAlphaPlus(t *testing.T) {
+	if !strings.Contains(alphaProFundQuery, "FROM AlphaProFund") {
+		t.Fatalf("alpha_pro source must read Nav.AlphaProFund: %s", alphaProFundQuery)
+	}
+	if !strings.Contains(alphaProFundQuery, "CONCAT('alpha_pro:', PROD_CODE)") {
+		t.Fatalf("alpha_pro metric key must be alpha_pro:{PROD_CODE}: %s", alphaProFundQuery)
+	}
+	if !strings.Contains(alphaProFundQuery, "PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''") {
+		t.Fatalf("alpha_pro eligibility must require a non-empty PROD_CODE: %s", alphaProFundQuery)
+	}
+	if strings.Contains(alphaProFundQuery, "is_index") {
+		t.Fatalf("alpha_pro has no is_index column and must not mark rows as index: %s", alphaProFundQuery)
 	}
 }
 
@@ -58,12 +74,13 @@ func TestExcludeBackupFundInfosUsesStandardMetricCode(t *testing.T) {
 		{ProdCode: "SXN345", ProdName: "primary"},
 		{ProdCode: "SBQS25", ProdName: "backup", MetricCode: "fof99:SBQS25"},
 		{ProdCode: "AP-A", ProdName: "alpha plus", MetricCode: "alpha_plus:AP-A"},
+		{ProdCode: "AR-A", ProdName: "alpha pro", MetricCode: "alpha_pro:AR-A"},
 		{ProdCode: "MAIL-A", ProdName: "mail", MetricCode: "mail:MAIL-A"},
 	}
 
 	filtered := excludeBackupFundInfos(
 		infos,
-		map[string]struct{}{"fof99:SBQS25": {}, "alpha_plus:AP-A": {}, "mail:MAIL-A": {}},
+		map[string]struct{}{"fof99:SBQS25": {}, "alpha_plus:AP-A": {}, "alpha_pro:AR-A": {}, "mail:MAIL-A": {}},
 	)
 
 	if len(filtered) != 1 {

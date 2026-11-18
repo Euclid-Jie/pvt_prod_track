@@ -122,15 +122,17 @@ First run without `config.json` -> settings modal auto-opens.
 
 4. **`Nav.AlphaPlusFund`** — supplemental Alpha Plus product info for rows with non-empty `PROD_CODE`. It is appended after `PendingFund` without deduplication.
 
-5. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `AlphaPlusFund` without deduplication. Its `is_index` value is exposed as `Fund.is_index`; rows from other sources set this field to `false`.
+5. **`Nav.AlphaProFund`** — supplemental AlphaPro product info for rows with non-empty `PROD_CODE`. It mirrors `AlphaPlusFund` (same columns, same eligibility) and is appended after `AlphaPlusFund` without deduplication.
 
-6. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
+6. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `AlphaProFund` without deduplication. Its `is_index` value is exposed as `Fund.is_index`; rows from other sources set this field to `false`.
 
-7. **`Nav.mail_nav_index`** — supplemental Mail NAV product info for enabled rows with non-empty `prod_comp`, `product_key`, and `prod_type`. It is appended after `smw_index` without deduplication.
+7. **`Nav.smw_index`** — supplemental SimuWang product info. It is appended after `fof99_nav_index` without deduplication.
 
-8. **`Nav.nav_product_preferences`** — read `fund_code` rows where `is_backup = 1` and exclude those products after resolving each source's standard metric key. This is an explicit operator preference, not automatic deduplication. The report must never write or infer backup status.
+8. **`Nav.mail_nav_index`** — supplemental Mail NAV product info for enabled rows with non-empty `prod_comp`, `product_key`, and `prod_type`. It is appended after `smw_index` without deduplication.
 
-Supplemental rows from `PendingFund`, `fof99_nav_index`, `smw_index`, and `mail_nav_index` do not carry scale directly. Their `comp_code` maps to `Euclid.private_manager_profile.comp_code`; display scale comes from `private_manager_profile.管理规模`. Alpha Plus also maps `Nav.AlphaPlusFund.comp_code` to `Euclid.private_manager_profile.comp_code`; `prod_comp` remains the displayed manager name.
+9. **`Nav.nav_product_preferences`** — read `fund_code` rows where `is_backup = 1` and exclude those products after resolving each source's standard metric key. This is an explicit operator preference, not automatic deduplication. The report must never write or infer backup status.
+
+Supplemental rows from `PendingFund`, `fof99_nav_index`, `smw_index`, and `mail_nav_index` do not carry scale directly. Their `comp_code` maps to `Euclid.private_manager_profile.comp_code`; display scale comes from `private_manager_profile.管理规模`. Alpha Plus also maps `Nav.AlphaPlusFund.comp_code` to `Euclid.private_manager_profile.comp_code`, and AlphaPro does the same with `Nav.AlphaProFund.comp_code`; `prod_comp` remains the displayed manager name.
 
 Manager scale has exactly one source: `Euclid.private_manager_profile`. No source query returns a scale column or joins another scale table; every query returns `comp_code`, and `fillManagerScales` (called once in `loadFundInfos`) fills `Scale` after trimming whitespace and ignoring case. `Euclid.fund_basic_info.管理人规模` is a legacy redundant column and must not be read. Products without a matching `comp_code` (public-fund `公募` rows, legacy `PT…` codes) intentionally show `-` and count as 小厂.
 
@@ -141,6 +143,7 @@ Detailed source contracts and key mappings are documented in `docs/data-sources.
 - ordinary `fund_basic_info` rows -> key = `prod_code`
 - `PendingFund` rows -> key = `pending:{PROD_CODE}` (example: `pending:VU448B`)
 - `AlphaPlusFund` rows -> key = `alpha_plus:{PROD_CODE}`
+- `AlphaProFund` rows -> key = `alpha_pro:{PROD_CODE}`
 - `fof99_nav_index` rows -> key = `fof99:{register_number}` (example: `fof99:SAHC27`)
 - `smw_index` rows -> key = `smw:{register_number}` (example: `smw:SAVW31`)
 - `mail_nav_index` rows -> key = `mail:{product_key}`

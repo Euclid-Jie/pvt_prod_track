@@ -16,6 +16,7 @@ import (
 const managerScaleQuery = "SELECT COALESCE(`comp_code`, ''), COALESCE(`管理规模`, '') FROM `private_manager_profile`"
 const fundBasicInfoQuery = "SELECT '', COALESCE(prod_code, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), 净值来源, fid, 0 FROM fund_basic_info WHERE 净值来源 IS NOT NULL"
 const alphaPlusFundQuery = "SELECT CONCAT('alpha_plus:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), COALESCE(prod_comp, ''), COALESCE(STRATEGY_TYPE, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM AlphaPlusFund WHERE PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''"
+const alphaProFundQuery = "SELECT CONCAT('alpha_pro:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), COALESCE(prod_comp, ''), COALESCE(STRATEGY_TYPE, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM AlphaProFund WHERE PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''"
 
 func managerScaleKey(compCode string) string {
 	return strings.ToUpper(strings.TrimSpace(compCode))
@@ -183,6 +184,7 @@ func loadFundInfos(euclidDB, navDB *sql.DB) ([]fundInfo, error) {
 		{euclidDB, fundBasicInfoQuery},
 		{navDB, "SELECT CONCAT('pending:', PROD_CODE), COALESCE(PROD_CODE, ''), COALESCE(PROD_NAME, ''), prod_comp, COALESCE(ProdType, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM PendingFund WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''"},
 		{navDB, alphaPlusFundQuery},
+		{navDB, alphaProFundQuery},
 		{navDB, "SELECT CONCAT('fof99:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, COALESCE(is_index, 0) FROM fof99_nav_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
 		{navDB, "SELECT CONCAT('smw:', register_number), COALESCE(register_number, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM smw_index WHERE prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND register_number IS NOT NULL AND TRIM(register_number) <> ''"},
 		{navDB, "SELECT CONCAT('mail:', product_key), COALESCE(product_key, ''), COALESCE(prod_name, ''), COALESCE(prod_comp, ''), COALESCE(prod_type, ''), '', COALESCE(comp_code, ''), '', NULL, 0 FROM mail_nav_index WHERE enabled = 1 AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> '' AND product_key IS NOT NULL AND TRIM(product_key) <> '' AND prod_type IS NOT NULL AND TRIM(prod_type) <> ''"},
