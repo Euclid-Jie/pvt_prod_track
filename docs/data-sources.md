@@ -119,12 +119,13 @@ Nav.PendingFund.comp_code
 
 ## 来源三：Nav.AlphaPlusFund
 
-`AlphaPlusFund` 是 Alpha Plus 产品补充来源。管理人字段可以为空，产品准入只要求 `PROD_CODE` 非空。
+`AlphaPlusFund` 是 Alpha Plus 产品补充来源。产品准入要求 `PROD_CODE` 和 `prod_comp` 都非空：`prod_comp` 为空的行不进入周报，和其他补充来源保持一致。
 
 准入条件：
 
 ```sql
 PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''
+AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''
 ```
 
 读取字段：
@@ -155,12 +156,13 @@ Nav.AlphaPlusFund.comp_code
 
 ## 来源四：Nav.AlphaProFund
 
-`AlphaProFund` 是 AlphaPro 产品补充来源，规则与 `AlphaPlusFund` 一致。管理人字段可以为空，产品准入只要求 `PROD_CODE` 非空。指标生成端在 `nav_sources.py` 中定义为 `ALPHA_PRO_SOURCE`，`metric_code_prefix = 'alpha_pro:'`。当前逻辑追加在 `alpha_plus` 之后，不做去重。
+`AlphaProFund` 是 AlphaPro 产品补充来源，规则与 `AlphaPlusFund` 一致（`PROD_CODE` 和 `prod_comp` 都非空）。指标生成端在 `nav_sources.py` 中定义为 `ALPHA_PRO_SOURCE`，`metric_code_prefix = 'alpha_pro:'`。当前逻辑追加在 `alpha_plus` 之后，不做去重。
 
 准入条件：
 
 ```sql
 PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''
+AND prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''
 ```
 
 读取字段：

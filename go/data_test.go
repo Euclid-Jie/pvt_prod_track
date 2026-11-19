@@ -39,8 +39,28 @@ func TestAlphaProQueryMirrorsAlphaPlus(t *testing.T) {
 	if !strings.Contains(alphaProFundQuery, "PROD_CODE IS NOT NULL AND TRIM(PROD_CODE) <> ''") {
 		t.Fatalf("alpha_pro eligibility must require a non-empty PROD_CODE: %s", alphaProFundQuery)
 	}
+	if !strings.Contains(alphaProFundQuery, "prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''") {
+		t.Fatalf("alpha_pro eligibility must require a non-empty prod_comp: %s", alphaProFundQuery)
+	}
 	if strings.Contains(alphaProFundQuery, "is_index") {
 		t.Fatalf("alpha_pro has no is_index column and must not mark rows as index: %s", alphaProFundQuery)
+	}
+}
+
+// 管理人缺失的产品不允许进入周报：所有补充来源都要求 prod_comp 非空。
+func TestSupplementalSourceQueriesRequireProdComp(t *testing.T) {
+	queries := map[string]string{
+		"alpha_plus": alphaPlusFundQuery,
+		"alpha_pro":  alphaProFundQuery,
+		"pending":    pendingFundQuery,
+		"fof99":      fof99NavIndexQuery,
+		"smw":        smwIndexQuery,
+		"mail":       mailNavIndexQuery,
+	}
+	for name, query := range queries {
+		if !strings.Contains(query, "prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''") {
+			t.Fatalf("%s query must require a non-empty prod_comp: %s", name, query)
+		}
 	}
 }
 

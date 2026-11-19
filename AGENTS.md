@@ -120,9 +120,9 @@ First run without `config.json` -> settings modal auto-opens.
 
 3. **`Nav.PendingFund`** — supplemental product info for rows where `prod_comp IS NOT NULL AND TRIM(prod_comp) <> ''`. It is appended after `fund_basic_info` without deduplication.
 
-4. **`Nav.AlphaPlusFund`** — supplemental Alpha Plus product info for rows with non-empty `PROD_CODE`. It is appended after `PendingFund` without deduplication.
+4. **`Nav.AlphaPlusFund`** — supplemental Alpha Plus product info for rows with non-empty `PROD_CODE` and non-empty `prod_comp`. It is appended after `PendingFund` without deduplication.
 
-5. **`Nav.AlphaProFund`** — supplemental AlphaPro product info for rows with non-empty `PROD_CODE`. It mirrors `AlphaPlusFund` (same columns, same eligibility) and is appended after `AlphaPlusFund` without deduplication.
+5. **`Nav.AlphaProFund`** — supplemental AlphaPro product info for rows with non-empty `PROD_CODE` and non-empty `prod_comp`. It mirrors `AlphaPlusFund` (same columns, same eligibility) and is appended after `AlphaPlusFund` without deduplication.
 
 6. **`Nav.fof99_nav_index`** — supplemental FOF99 index product info. It is appended after `AlphaProFund` without deduplication. Its `is_index` value is exposed as `Fund.is_index`; rows from other sources set this field to `false`.
 
